@@ -39,18 +39,18 @@ $transactions = $pdo->query($queryTransactions)->fetchAll();
 <div id="content" class="fade-in">
     <div class="d-flex justify-content-between align-items-center mb-4 g-3 flex-wrap">
         <div>
-            <h4 class="fw-800 text-brand-red">Laporan Kas Organisasi</h4>
-            <p class="text-muted small">Ringkasan arus kas masuk dan keluar secara real-time.</p>
+            <h4 class="fw-800 text-brand-red">Laporan Kas</h4>
+            <p class="text-muted small">Ringkasan arus kas masuk dan keluar.</p>
         </div>
         <?php if ($_SESSION['user']['nama_role'] == 'Bendum' || $_SESSION['user']['nama_role'] == 'Super Admin'): ?>
-        <div class="d-flex gap-2">
-            <a href="kas_masuk.php" class="btn btn-primary shadow-sm btn-sm px-3">
-                <i class="fas fa-plus-circle me-1"></i> Kas Masuk
-            </a>
-            <a href="kas_keluar.php" class="btn btn-danger shadow-sm btn-sm px-3">
-                <i class="fas fa-minus-circle me-1"></i> Kas Keluar
-            </a>
-        </div>
+            <div class="d-flex gap-2">
+                <a href="kas_masuk.php" class="btn btn-primary shadow-sm btn-sm px-3">
+                    <i class="fas fa-plus-circle me-1"></i> Kas Masuk
+                </a>
+                <a href="kas_keluar.php" class="btn btn-danger shadow-sm btn-sm px-3">
+                    <i class="fas fa-minus-circle me-1"></i> Kas Keluar
+                </a>
+            </div>
         <?php endif; ?>
     </div>
 
@@ -60,7 +60,8 @@ $transactions = $pdo->query($queryTransactions)->fetchAll();
             <div class="card border-0 shadow-sm overflow-hidden bg-gradient-emerald text-white">
                 <div class="card-body p-4 position-relative">
                     <div class="d-flex align-items-center mb-2">
-                        <div class="stats-icon bg-white bg-opacity-20 text-white me-3" style="width: 32px; height: 32px; border-radius: 8px;">
+                        <div class="stats-icon bg-white bg-opacity-20 text-white me-3"
+                            style="width: 32px; height: 32px; border-radius: 8px;">
                             <i class="fas fa-arrow-down small"></i>
                         </div>
                         <h6 class="text-white-50 fw-bold small text-uppercase mb-0 ls-1">Kas Masuk</h6>
@@ -74,7 +75,8 @@ $transactions = $pdo->query($queryTransactions)->fetchAll();
             <div class="card border-0 shadow-sm overflow-hidden bg-gradient-rose text-white">
                 <div class="card-body p-4 position-relative">
                     <div class="d-flex align-items-center mb-2">
-                        <div class="stats-icon bg-white bg-opacity-20 text-white me-3" style="width: 32px; height: 32px; border-radius: 8px;">
+                        <div class="stats-icon bg-white bg-opacity-20 text-white me-3"
+                            style="width: 32px; height: 32px; border-radius: 8px;">
                             <i class="fas fa-arrow-up small"></i>
                         </div>
                         <h6 class="text-white-50 fw-bold small text-uppercase mb-0 ls-1">Kas Keluar</h6>
@@ -85,13 +87,15 @@ $transactions = $pdo->query($queryTransactions)->fetchAll();
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm overflow-hidden bg-dark text-white shadow-lg" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+            <div class="card border-0 shadow-sm overflow-hidden bg-dark text-white shadow-lg"
+                style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
                 <div class="card-body p-4 position-relative">
                     <div class="d-flex align-items-center mb-2">
-                        <div class="stats-icon bg-white bg-opacity-10 text-white me-3" style="width: 32px; height: 32px; border-radius: 8px;">
+                        <div class="stats-icon bg-white bg-opacity-10 text-white me-3"
+                            style="width: 32px; height: 32px; border-radius: 8px;">
                             <i class="fas fa-wallet small"></i>
                         </div>
-                        <h6 class="text-white-50 fw-bold small text-uppercase mb-0 ls-1">Saldo Akkumulasi</h6>
+                        <h6 class="text-white-50 fw-bold small text-uppercase mb-0 ls-1">Total</h6>
                     </div>
                     <h3 class="fw-800 mb-0 text-amber-400">Rp <?= number_format($saldo, 0, ',', '.') ?></h3>
                     <div class="stats-bg-icon text-white opacity-5"><i class="fas fa-coins"></i></div>
@@ -121,41 +125,48 @@ $transactions = $pdo->query($queryTransactions)->fetchAll();
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if ($transactions): foreach($transactions as $t): ?>
-                        <tr class="modern-row">
-                            <td class="ps-4">
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar-sm me-3 <?= $t['jenis'] == 'masuk' ? 'bg-brand-green-soft text-brand-green' : 'bg-danger-soft text-danger' ?> rounded-3 d-flex align-items-center justify-content-center fw-bold">
-                                        <?= date('d', strtotime($t['tanggal'])) ?>
+                        <?php if ($transactions):
+                            foreach ($transactions as $t): ?>
+                                <tr class="modern-row">
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center">
+                                            <div
+                                                class="avatar-sm me-3 <?= $t['jenis'] == 'masuk' ? 'bg-brand-green-soft text-brand-green' : 'bg-danger-soft text-danger' ?> rounded-3 d-flex align-items-center justify-content-center fw-bold">
+                                                <?= date('d', strtotime($t['tanggal'])) ?>
+                                            </div>
+                                            <div class="small fw-600"><?= date('M Y', strtotime($t['tanggal'])) ?></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-600 text-dark small"><?= $t['keterangan'] ?></div>
+                                        <div class="text-muted" style="font-size: 0.7rem;"><i
+                                                class="far fa-clock me-1"></i>08:00 WIB</div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span
+                                            class="badge <?= $t['jenis'] == 'masuk' ? 'bg-brand-green-soft text-brand-green' : 'bg-danger-soft text-danger' ?> px-3 py-1 rounded-pill small fw-bold">
+                                            <i
+                                                class="fas <?= $t['jenis'] == 'masuk' ? 'fa-caret-down' : 'fa-caret-up' ?> me-1"></i>
+                                            <?= ucfirst($t['jenis']) ?>
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <span class="fw-800 <?= $t['jenis'] == 'masuk' ? 'text-primary' : 'text-danger' ?>"
+                                            style="font-size: 0.95rem;">
+                                            <?= $t['jenis'] == 'masuk' ? '+' : '-' ?> Rp
+                                            <?= number_format($t['jumlah'], 0, ',', '.') ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; else: ?>
+                            <tr>
+                                <td colspan="4" class="text-center py-5">
+                                    <div class="py-4 opacity-50">
+                                        <i class="fas fa-receipt fa-3x mb-3"></i>
+                                        <p class="fw-bold">Belum ada catatan transaksi kas.</p>
                                     </div>
-                                    <div class="small fw-600"><?= date('M Y', strtotime($t['tanggal'])) ?></div>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="fw-600 text-dark small"><?= $t['keterangan'] ?></div>
-                                <div class="text-muted" style="font-size: 0.7rem;"><i class="far fa-clock me-1"></i>08:00 WIB</div>
-                            </td>
-                            <td class="text-center">
-                                <span class="badge <?= $t['jenis'] == 'masuk' ? 'bg-brand-green-soft text-brand-green' : 'bg-danger-soft text-danger' ?> px-3 py-1 rounded-pill small fw-bold">
-                                    <i class="fas <?= $t['jenis'] == 'masuk' ? 'fa-caret-down' : 'fa-caret-up' ?> me-1"></i>
-                                    <?= ucfirst($t['jenis']) ?>
-                                </span>
-                            </td>
-                            <td class="text-end pe-4">
-                                <span class="fw-800 <?= $t['jenis'] == 'masuk' ? 'text-primary' : 'text-danger' ?>" style="font-size: 0.95rem;">
-                                    <?= $t['jenis'] == 'masuk' ? '+' : '-' ?> Rp <?= number_format($t['jumlah'], 0, ',', '.') ?>
-                                </span>
-                            </td>
-                        </tr>
-                        <?php endforeach; else: ?>
-                        <tr>
-                            <td colspan="4" class="text-center py-5">
-                                <div class="py-4 opacity-50">
-                                    <i class="fas fa-receipt fa-3x mb-3"></i>
-                                    <p class="fw-bold">Belum ada catatan transaksi kas.</p>
-                                </div>
-                            </td>
-                        </tr>
+                                </td>
+                            </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -165,26 +176,78 @@ $transactions = $pdo->query($queryTransactions)->fetchAll();
 </div>
 
 <style>
-.bg-gradient-emerald { background: linear-gradient(135deg, #DC2626 0%, #10b981 100%); }
-.bg-gradient-rose { background: linear-gradient(135deg, #16A34A 0%, #f43f5e 100%); }
-.bg-brand-green-soft { background-color: #FEF2F2; color: #DC2626; }
-.text-brand-green { color: #DC2626; }
-.bg-danger-soft { background-color: #F0FDF4; color: #16A34A; }
-.btn-light-soft { background-color: #f1f5f9; border: none; }
-.avatar-sm { width: 36px; height: 36px; border-radius: 10px; font-size: 0.85rem; }
-.stats-icon { display: flex; align-items: center; justify-content: center; }
-.stats-bg-icon {
-    position: absolute; right: -10px; bottom: -20px;
-    font-size: 5rem; color: rgba(0,0,0,0.03); transform: rotate(-15deg);
-}
-.ls-1 { letter-spacing: 0.5px; }
-.fw-800 { font-weight: 800; }
-.fw-600 { font-weight: 600; }
-.modern-row:hover { background-color: #f9fafb; }
-.rounded-4 { border-radius: 1.25rem !important; }
-.text-amber-400 { color: #fbbf24 !important; }
+    .bg-gradient-emerald {
+        background: linear-gradient(135deg, #DC2626 0%, #10b981 100%);
+    }
+
+    .bg-gradient-rose {
+        background: linear-gradient(135deg, #16A34A 0%, #f43f5e 100%);
+    }
+
+    .bg-brand-green-soft {
+        background-color: #FEF2F2;
+        color: #DC2626;
+    }
+
+    .text-brand-green {
+        color: #DC2626;
+    }
+
+    .bg-danger-soft {
+        background-color: #F0FDF4;
+        color: #16A34A;
+    }
+
+    .btn-light-soft {
+        background-color: #f1f5f9;
+        border: none;
+    }
+
+    .avatar-sm {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+    }
+
+    .stats-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .stats-bg-icon {
+        position: absolute;
+        right: -10px;
+        bottom: -20px;
+        font-size: 5rem;
+        color: rgba(0, 0, 0, 0.03);
+        transform: rotate(-15deg);
+    }
+
+    .ls-1 {
+        letter-spacing: 0.5px;
+    }
+
+    .fw-800 {
+        font-weight: 800;
+    }
+
+    .fw-600 {
+        font-weight: 600;
+    }
+
+    .modern-row:hover {
+        background-color: #f9fafb;
+    }
+
+    .rounded-4 {
+        border-radius: 1.25rem !important;
+    }
+
+    .text-amber-400 {
+        color: #fbbf24 !important;
+    }
 </style>
 
 <?php include '../layout/footer.php'; ?>
-
-

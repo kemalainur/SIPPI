@@ -2,7 +2,7 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'PPI']);
+check_role(['Super Admin', 'PPI', 'Sekjend']);
 
 $id_kegiatan = $_GET['id'] ?? null;
 if (!$id_kegiatan) {
@@ -18,6 +18,14 @@ if (!$kegiatan) {
     header("Location: bulan_penilaian.php");
     exit;
 }
+
+// Check if period is open
+$stmtPeriode = $pdo->prepare("SELECT status FROM tabel_periode WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
+$stmtPeriode->execute([$kegiatan['bulan'], $kegiatan['tahun'], $kegiatan['kepengurusan_id']]);
+$periode_status = $stmtPeriode->fetchColumn();
+
+$is_closed = ($periode_status !== 'aktif');
+$is_admin = in_array($_SESSION['user']['nama_role'], ['Super Admin', 'PPI']);
 
 $title = "Input Kehadiran";
 include '../layout/header.php';
@@ -80,6 +88,13 @@ $members = $stmtMembers->fetchAll();
     </div>
     <?php endif; ?>
 
+    <?php if ($is_closed): ?>
+    <div class="alert alert-warning border-0 shadow-sm rounded-4 p-3 mb-4 d-flex align-items-center" role="alert">
+        <i class="fas fa-lock fa-lg me-3"></i>
+        <div class="fw-600">Bulan penilaian ini telah ditutup. Data presensi hanya dapat dilihat dan tidak dapat diubah.</div>
+    </div>
+    <?php endif; ?>
+
     <form method="POST">
         <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
             <div class="card-header bg-white border-0 py-4 px-4 d-flex justify-content-between align-items-center">
@@ -114,18 +129,23 @@ $members = $stmtMembers->fetchAll();
                                         <div class="btn-group rounded-pill overflow-hidden shadow-sm border" role="group">
                                             <input type="radio" class="btn-check" name="status[<?= $m['nokta'] ?>]" 
                                                    id="h_<?= $m['nokta'] ?>" value="hadir" 
-                                                   <?= $m['status_hadir'] == 'hadir' ? 'checked' : '' ?> required>
-                                            <label class="btn btn-outline-emerald btn-sm px-4 fw-800 border-0" for="h_<?= $m['nokta'] ?>">HADIR</label>
+                                                   <?= $m['status_hadir'] == 'hadir' ? 'checked' : '' ?> <?= $is_closed ? 'disabled' : '' ?> required>
+                                            <label class="btn btn-outline-success btn-sm px-3 fw-800 border-0" for="h_<?= $m['nokta'] ?>">HADIR</label>
                     
                                             <input type="radio" class="btn-check" name="status[<?= $m['nokta'] ?>]" 
                                                    id="i_<?= $m['nokta'] ?>" value="izin" 
-                                                   <?= $m['status_hadir'] == 'izin' ? 'checked' : '' ?>>
-                                            <label class="btn btn-outline-warning btn-sm px-4 fw-800 border-0" for="i_<?= $m['nokta'] ?>">IZIN</label>
+                                                   <?= $m['status_hadir'] == 'izin' ? 'checked' : '' ?> <?= $is_closed ? 'disabled' : '' ?>>
+                                            <label class="btn btn-outline-info btn-sm px-3 fw-800 border-0" for="i_<?= $m['nokta'] ?>">IZIN</label>
+
+                                            <input type="radio" class="btn-check" name="status[<?= $m['nokta'] ?>]" 
+                                                   id="l_<?= $m['nokta'] ?>" value="telat" 
+                                                   <?= $m['status_hadir'] == 'telat' ? 'checked' : '' ?> <?= $is_closed ? 'disabled' : '' ?>>
+                                            <label class="btn btn-outline-warning btn-sm px-3 fw-800 border-0" for="l_<?= $m['nokta'] ?>">TELAT</label>
                     
                                             <input type="radio" class="btn-check" name="status[<?= $m['nokta'] ?>]" 
-                                                   id="t_<?= $m['nokta'] ?>" value="tidak_hadir" 
-                                                   <?= ($m['status_hadir'] == 'tidak_hadir' || !$m['status_hadir']) ? 'checked' : '' ?>>
-                                            <label class="btn btn-outline-danger btn-sm px-4 fw-800 border-0" for="t_<?= $m['nokta'] ?>">ALPA</label>
+                                                   id="t_<?= $m['nokta'] ?>" value="alpa" 
+                                                   <?= ($m['status_hadir'] == 'alpa' || !$m['status_hadir']) ? 'checked' : '' ?> <?= $is_closed ? 'disabled' : '' ?>>
+                                            <label class="btn btn-outline-danger btn-sm px-3 fw-800 border-0" for="t_<?= $m['nokta'] ?>">ALPA</label>
                                         </div>
                                     </div>
                                 </td>
@@ -136,9 +156,15 @@ $members = $stmtMembers->fetchAll();
                 </div>
             </div>
             <div class="card-footer bg-white border-0 p-4 text-end border-top border-light">
+                <?php if (!$is_closed): ?>
                 <button type="submit" class="btn btn-primary px-5 fw-800 rounded-pill py-3 shadow-lg">
                     <i class="fas fa-save me-2"></i> Simpan Data Presensi
                 </button>
+                <?php else: ?>
+                <button type="button" class="btn btn-secondary px-5 fw-800 rounded-pill py-3 shadow-lg" disabled>
+                    <i class="fas fa-lock me-2"></i> Periode Terkunci
+                </button>
+                <?php endif; ?>
             </div>
         </div>
     </form>
@@ -151,10 +177,12 @@ $members = $stmtMembers->fetchAll();
 .bg-primary-soft { background-color: rgba(220, 38, 38, 0.1); }
 .text-brand-green { color: #DC2626; }
 .btn-light-soft { background-color: #f1f5f9; border: none; }
-.btn-outline-emerald { color: #DC2626; border-color: #DC2626; }
-.btn-outline-emerald:hover, .btn-check:checked + label.btn-outline-emerald { background-color: #DC2626; color: #fff; }
+.btn-outline-success { color: #16A34A; border-color: #16A34A; }
+.btn-outline-success:hover, .btn-check:checked + label.btn-outline-success { background-color: #16A34A; color: #fff; }
+.btn-outline-info { color: #0EA5E9; border-color: #0EA5E9; }
+.btn-outline-info:hover, .btn-check:checked + label.btn-outline-info { background-color: #0EA5E9; color: #fff; }
 .btn-check:checked + label.btn-outline-warning { background-color: #f59e0b; color: #fff; border-color: #f59e0b; }
-.btn-check:checked + label.btn-outline-danger { background-color: #16A34A; color: #fff; border-color: #16A34A; }
+.btn-check:checked + label.btn-outline-danger { background-color: #DC2626; color: #fff; border-color: #DC2626; }
 .avatar-sm { width: 36px; height: 36px; border-radius: 10px; font-size: 0.8rem; }
 .fw-800 { font-weight: 800; }
 .fw-600 { font-weight: 600; }

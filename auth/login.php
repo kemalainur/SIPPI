@@ -250,13 +250,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="password" name="password" class="form-control" placeholder="••••••••" required>
                     </div>
                 </div>
-                <button type="submit" class="btn-login">AUTENTIKASI & MASUK</button>
+                <button type="submit" class="btn-login">LOGIN</button>
             </form>
         </div>
     </div>
 
     <div class="credits">
-        &copy; <?= date('Y') ?> TIM PPI - SIPPI OFFICIAL SYSTEM
+        &copy; <?= date('Y') ?> SIPPI - Develop by tim PPI
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

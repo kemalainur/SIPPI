@@ -44,18 +44,17 @@ $stmtMonitoring = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role,
 $stmtMonitoring->execute([$bulan, $tahun, $active_p['id_kepengurusan']]);
 $monitoring = $stmtMonitoring->fetchAll();
 
-// Count total possible ratees (Bendum, Sekjend, Kabiro, Kadiv, Staff)
+// Count total possible ratees (everyone except Super Admin)
 $stmtRatees = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan j 
                              JOIN tabel_role r ON j.role_id = r.id_role
                              WHERE j.kepengurusan_id = ? 
-                             AND r.nama_role NOT IN ('Super Admin', 'Koorkam', 'PPI')");
+                             AND r.nama_role != 'Super Admin'");
 $stmtRatees->execute([$active_p['id_kepengurusan']]);
-$countRatees = (int)$stmtRatees->fetchColumn();
+$countTotalPengurus = (int)$stmtRatees->fetchColumn();
 
-// Process each rater with role-specific targets
-$monitoring = array_map(function($m) use ($countRatees) {
-    $isRatee = !in_array($m['nama_role'], ['Super Admin', 'Koorkam', 'PPI']);
-    $m['target'] = $isRatee ? max(0, $countRatees - 1) : $countRatees;
+// Process each rater with target (Total Pengurus - 1)
+$monitoring = array_map(function($m) use ($countTotalPengurus) {
+    $m['target'] = max(0, $countTotalPengurus - 1);
     $m['is_done'] = $m['total_dinilai'] >= $m['target'];
     return $m;
 }, $monitoring);

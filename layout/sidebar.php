@@ -75,7 +75,7 @@ $role = $_SESSION['user']['nama_role'];
             </a>
         </li>
 
-        <?php if (in_array($role, ['Super Admin', 'Sekjend', 'Kabiro', 'Kadiv', 'Staff'])): ?>
+        <?php if (in_array($role, ['Super Admin', 'Sekjend', 'Bendum', 'PPI', 'Koorkam', 'Kabiro', 'Kadiv', 'Staff'])): ?>
         <li class="<?= (strpos($_SERVER['PHP_SELF'], '/penilaian_input.php') !== false) ? 'active' : '' ?>">
             <a href="<?= base_url('ppi/penilaian_input.php') ?>">
                 <i class="fas fa-star-half-alt"></i> Beri Penilaian

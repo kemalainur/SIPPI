@@ -27,14 +27,14 @@ $bulan = $active['bulan'];
 $tahun = $active['tahun'];
 $me = $_SESSION['user']['nokta'];
 
-// Fetch all CURRENT members to be rated (excluding PPI, Koorkam, Super Admin and myself)
+// Fetch all CURRENT members to be rated (excluding Super Admin and myself)
 // NEW: Filter out members already rated by the current user in this month
 $stmtToRate = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role 
                              FROM tabel_pengurus p 
                              JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
                              JOIN tabel_role r ON j.role_id = r.id_role
                              LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
-                             WHERE r.nama_role NOT IN ('PPI', 'Koorkam', 'Super Admin') 
+                             WHERE r.nama_role != 'Super Admin' 
                              AND p.nokta != ?
                              AND tp.id_penilaian IS NULL
                              ORDER BY p.nama ASC");

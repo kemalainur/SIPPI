@@ -96,10 +96,19 @@ CREATE TABLE IF NOT EXISTS tabel_kehadiran (
     id INT PRIMARY KEY AUTO_INCREMENT,
     kegiatan_id INT,
     nokta_pengurus VARCHAR(20),
-    status_hadir ENUM('hadir', 'tidak_hadir', 'izin') DEFAULT 'tidak_hadir',
+    status_hadir ENUM('hadir', 'izin', 'alpa', 'telat') DEFAULT 'alpa',
     FOREIGN KEY (kegiatan_id) REFERENCES tabel_kegiatan(id_kegiatan) ON DELETE CASCADE,
     FOREIGN KEY (nokta_pengurus) REFERENCES tabel_pengurus(nokta) ON DELETE CASCADE
 );
+
+-- Insert default indicators
+INSERT INTO tabel_indikator (nama_indikator, kategori) VALUES 
+('Integritas & Kejujuran', 'attitude'),
+('Kerapihan & Kesopanan', 'attitude'),
+('Loyalitas Organisasi', 'attitude'),
+('Kualitas Komunikasi', 'komunikasi'),
+('Koordinasi Teamwork', 'komunikasi'),
+('Responsivitas', 'komunikasi');
 
 -- 9. tabel_kas_pengurus
 CREATE TABLE IF NOT EXISTS tabel_kas_pengurus (
