@@ -36,7 +36,6 @@ $items = $pdo->query("SELECT * FROM tabel_inventaris ORDER BY nama_barang ASC")-
     <div class="d-flex justify-content-between align-items-center mb-4 g-3 flex-wrap">
         <div>
             <h4 class="fw-800 text-brand-red mb-1">Inventaris Organisasi</h4>
-            <p class="text-muted small">Pantau dan kelola aset fisik SIPPI untuk operasional yang lancar.</p>
         </div>
         <?php if (in_array($role, ['Super Admin', 'Sekjend'])): ?>
         <button class="btn btn-primary d-flex align-items-center shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#addModal">

@@ -170,6 +170,23 @@ CREATE TABLE IF NOT EXISTS tabel_kas_umum (
     jumlah DECIMAL(15,2) NOT NULL
 );
 
+-- 14. tabel_pengaturan_kpi
+CREATE TABLE IF NOT EXISTS `tabel_pengaturan_kpi` (
+    `kunci` VARCHAR(50) PRIMARY KEY,
+    `label` VARCHAR(100),
+    `bobot` FLOAT DEFAULT 0,
+    `kategori` ENUM('utama', 'disiplin') DEFAULT 'utama'
+);
+
+INSERT INTO `tabel_pengaturan_kpi` (`kunci`, `label`, `bobot`, `kategori`) VALUES 
+('weight_attitude', 'Bobot Attitude', 40.0, 'utama'),
+('weight_komunikasi', 'Bobot Komunikasi', 30.0, 'utama'),
+('weight_disiplin', 'Bobot Disiplin', 30.0, 'utama'),
+('weight_disiplin_hadir', 'Disiplin: Kehadiran', 40.0, 'disiplin'),
+('weight_disiplin_telat', 'Disiplin: Ketepatan Waktu', 40.0, 'disiplin'),
+('weight_disiplin_kas', 'Disiplin: Pembayaran Kas', 20.0, 'disiplin')
+ON DUPLICATE KEY UPDATE `bobot` = VALUES(`bobot`);
+
 -- Default Super Admin (No. KTA: 07-23106, Nama: Moh Kemal Ainur Ardiansyah, password: admin123)
 -- Plain text password as requested
 INSERT INTO tabel_pengurus (nokta, nama, role_id, password) VALUES 

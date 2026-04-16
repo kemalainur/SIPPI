@@ -3,7 +3,10 @@ $current_page = basename($_SERVER['PHP_SELF']);
 $role = $_SESSION['user']['nama_role'];
 ?>
 <nav id="sidebar" class="shadow">
-    <div class="sidebar-header border-bottom border-light-soft mb-3">
+    <div class="sidebar-header border-bottom border-light-soft mb-3 position-relative">
+        <button id="sidebarClose" class="btn btn-link text-white position-absolute top-0 end-0 m-2 d-lg-none opacity-50">
+            <i class="fas fa-times fa-lg"></i>
+        </button>
         <div class="d-inline-block position-relative mb-3">
             <img src="<?= base_url('assets/img/logo.png') ?>" alt="Logo" class="img-fluid rounded-circle shadow-lg border border-3 border-brand-gold p-1" style="width: 75px; background: #fff;">
             <span class="position-absolute bottom-0 end-0 p-2 bg-success border border-3 border-dark rounded-circle shadow-sm" style="margin-bottom: 2px; margin-right: 2px;"></span>
@@ -47,7 +50,7 @@ $role = $_SESSION['user']['nama_role'];
             <ul class="collapse list-unstyled <?= (strpos($_SERVER['PHP_SELF'], '/kas/') !== false) ? 'show' : '' ?>" id="kasSubmenu">
                 <li><a href="<?= base_url('kas/kas_saya.php') ?>" class="fw-800 text-brand-red">Kas Saya</a></li>
                 <li><a href="<?= base_url('kas/laporan_kas.php') ?>">Laporan Kas</a></li>
-                <?php if (in_array($role, ['Super Admin', 'Bendum'])): ?>
+                <?php if (in_array($role, ['Super Admin', 'Bendum', 'PPI'])): ?>
                 <li><a href="<?= base_url('kas/status_kas_pengurus.php') ?>">Status Bayar Kas</a></li>
                 <li><a href="<?= base_url('kas/pengatur_kas.php') ?>">Konfigurasi Kas</a></li>
                 <?php endif; ?>
@@ -55,16 +58,20 @@ $role = $_SESSION['user']['nama_role'];
         </li>
         <?php endif; ?>
 
-        <?php if (in_array($role, ['Super Admin', 'PPI'])): ?>
+        <?php if (in_array($role, ['Super Admin', 'PPI', 'Sekjend', 'Bendum', 'Koorkam', 'Kabiro'])): ?>
         <li class="<?= (strpos($_SERVER['PHP_SELF'], '/ppi/') !== false) ? 'active' : '' ?>">
             <a href="#ppiSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle">
                 <i class="fas fa-shield-halved"></i> Modul PPI
             </a>
             <ul class="collapse list-unstyled <?= (strpos($_SERVER['PHP_SELF'], '/ppi/') !== false) ? 'show' : '' ?>" id="ppiSubmenu">
+                <?php if (in_array($role, ['Super Admin', 'PPI'])): ?>
                 <li><a href="<?= base_url('ppi/kelola_kepengurusan.php') ?>">Tahun Kepengurusan</a></li>
                 <li><a href="<?= base_url('ppi/bulan_penilaian.php') ?>">Bulan Penilaian</a></li>
+                <li><a href="<?= base_url('ppi/manajemen_kpi.php') ?>">Manajemen KPI</a></li>
                 <li><a href="<?= base_url('ppi/indikator_kpi.php') ?>">Indikator KPI</a></li>
+                <?php endif; ?>
                 <li><a href="<?= base_url('ppi/monitoring_penilaian.php') ?>">Monitor Penilaian</a></li>
+                <li><a href="<?= base_url('ppi/leaderboard_angkatan.php') ?>">Leaderboard Angkatan</a></li>
             </ul>
         </li>
         <?php endif; ?>

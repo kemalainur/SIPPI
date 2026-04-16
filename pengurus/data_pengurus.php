@@ -61,7 +61,6 @@ $pengurus = $stmt->fetchAll();
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h4 class="fw-800 text-brand-red mb-1">Manajemen Pengurus</h4>
-            <p class="text-muted small">Kelola data keanggotaan dan struktur organisasi SIPPI.</p>
         </div>
         <a href="tambah_pengurus.php" class="btn btn-primary d-flex align-items-center shadow-sm">
             <i class="fas fa-plus-circle me-2"></i> Tambah Pengurus Baru
@@ -127,6 +126,9 @@ $pengurus = $stmt->fetchAll();
                             <th>Angkatan</th>
                             <th>Jabatan & Struktur</th>
                             <th>Role & Akses</th>
+                            <?php if (in_array($_SESSION['user']['nama_role'], ['Super Admin', 'PPI'])): ?>
+                            <th>Password</th>
+                            <?php endif; ?>
                             <th class="text-center pe-4" style="width: 120px;">Aksi</th>
                         </tr>
                     </thead>
@@ -171,6 +173,13 @@ $pengurus = $stmt->fetchAll();
                                     <span class="text-muted small">-</span>
                                 <?php endif; ?>
                             </td>
+                            <?php if (in_array($_SESSION['user']['nama_role'], ['Super Admin', 'PPI'])): ?>
+                            <td>
+                                <span class="badge bg-light text-primary border px-2 py-1 fw-800" style="font-size: 0.75rem;">
+                                    <i class="fas fa-key me-1 opacity-50"></i><?= $p['password'] ?>
+                                </span>
+                            </td>
+                            <?php endif; ?>
                             <td class="text-center pe-4">
                                 <div class="d-flex justify-content-center gap-1">
                                     <a href="edit_pengurus.php?nokta=<?= $p['nokta'] ?>&context_period=<?= $filter_period ?>" 

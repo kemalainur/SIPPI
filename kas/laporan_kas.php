@@ -42,7 +42,7 @@ $transactions = $pdo->query($queryTransactions)->fetchAll();
             <h4 class="fw-800 text-brand-red">Laporan Kas</h4>
             <p class="text-muted small">Ringkasan arus kas masuk dan keluar.</p>
         </div>
-        <?php if ($_SESSION['user']['nama_role'] == 'Bendum' || $_SESSION['user']['nama_role'] == 'Super Admin'): ?>
+        <?php if (in_array($_SESSION['user']['nama_role'], ['Bendum', 'Super Admin', 'PPI'])): ?>
             <div class="d-flex gap-2">
                 <a href="kas_masuk.php" class="btn btn-primary shadow-sm btn-sm px-3">
                     <i class="fas fa-plus-circle me-1"></i> Kas Masuk

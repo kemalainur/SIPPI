@@ -53,6 +53,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->execute([$nama, $bulan, $tahun, $active_p['id_kepengurusan']])) {
             $message = "Kegiatan berhasil ditambahkan!";
         }
+    } elseif (isset($_POST['edit_kegiatan'])) {
+        $id = $_POST['id_kegiatan'];
+        $nama = $_POST['nama_kegiatan'];
+        $stmt = $pdo->prepare("UPDATE tabel_kegiatan SET nama_kegiatan = ? WHERE id_kegiatan = ?");
+        $stmt->execute([$nama, $id]);
+        $message = "Kegiatan berhasil diperbarui!";
+    } elseif (isset($_POST['delete_kegiatan'])) {
+        $id = $_POST['id_kegiatan'];
+        $stmt = $pdo->prepare("DELETE FROM tabel_kegiatan WHERE id_kegiatan = ?");
+        $stmt->execute([$id]);
+        $message = "Kegiatan berhasil dihapus!";
     }
 }
 
@@ -169,11 +180,57 @@ $indonesian_months = [
                                         <td class="ps-4 fw-600 text-muted"><?= $n++ ?></td>
                                         <td class="fw-800 text-dark"><?= $k['nama_kegiatan'] ?></td>
                                         <td class="text-center pe-4">
-                                            <a href="kehadiran_input.php?id=<?= $k['id_kegiatan'] ?>" class="btn btn-primary-soft btn-sm rounded-pill px-3 fw-800">
-                                                <i class="fas fa-user-check me-1"></i> Input Kehadiran
-                                            </a>
+                                            <div class="d-flex justify-content-center gap-1">
+                                                <a href="kehadiran_input.php?id=<?= $k['id_kegiatan'] ?>" class="btn btn-primary-soft btn-sm rounded-pill px-3 fw-800" title="Input Kehadiran">
+                                                    <i class="fas fa-user-check me-1"></i> Input
+                                                </a>
+                                                <button class="btn btn-icon btn-light-soft text-primary" data-bs-toggle="modal" data-bs-target="#editKegiatanModal<?= $k['id_kegiatan'] ?>" title="Ubah Nama"><i class="fas fa-edit small"></i></button>
+                                                <button class="btn btn-icon btn-light-soft text-danger" data-bs-toggle="modal" data-bs-target="#deleteKegiatanModal<?= $k['id_kegiatan'] ?>" title="Hapus Kegiatan"><i class="fas fa-trash-alt small"></i></button>
+                                            </div>
                                         </td>
-                                    <?php endforeach; ?>
+                                    </tr>
+
+                                    <!-- Modals for this activity -->
+                                    <div class="modal fade" id="editKegiatanModal<?= $k['id_kegiatan'] ?>" tabindex="-1">
+                                        <div class="modal-dialog modal-dialog-centered modal-sm">
+                                            <div class="modal-content border-0 shadow-lg rounded-4">
+                                                <form method="POST">
+                                                    <div class="modal-header border-0 p-4 pb-0">
+                                                        <h6 class="fw-800">Ubah Kegiatan</h6>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body p-4">
+                                                        <input type="hidden" name="id_kegiatan" value="<?= $k['id_kegiatan'] ?>">
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-800 text-muted text-uppercase">Nama Kegiatan</label>
+                                                            <input type="text" name="nama_kegiatan" value="<?= $k['nama_kegiatan'] ?>" class="form-control border-0 bg-light fw-600" required>
+                                                        </div>
+                                                        <button type="submit" name="edit_kegiatan" class="btn btn-primary w-100 fw-800 shadow-sm">Simpan Perubahan</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="modal fade" id="deleteKegiatanModal<?= $k['id_kegiatan'] ?>" tabindex="-1">
+                                        <div class="modal-dialog modal-dialog-centered modal-sm">
+                                            <div class="modal-content border-0 shadow-lg rounded-4 p-4 text-center">
+                                                <div class="stats-icon bg-danger-soft text-danger mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 20px;">
+                                                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                                                </div>
+                                                <h5 class="fw-800 text-dark">Hapus Kegiatan?</h5>
+                                                <p class="text-muted small">Tindakan ini akan menghapus seluruh data kehadiran yang sudah diinput untuk kegiatan ini.</p>
+                                                <form method="POST">
+                                                    <input type="hidden" name="id_kegiatan" value="<?= $k['id_kegiatan'] ?>">
+                                                    <div class="d-flex gap-2 mt-3">
+                                                        <button type="button" class="btn btn-light w-100 fw-600" data-bs-dismiss="modal">Batal</button>
+                                                        <button type="submit" name="delete_kegiatan" class="btn btn-danger w-100 fw-800">Ya, Hapus</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
                                         <td colspan="3" class="text-center py-5">

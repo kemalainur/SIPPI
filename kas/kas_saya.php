@@ -36,11 +36,6 @@ $monthNames = [
             <h4 class="fw-800 text-brand-red mb-1">Rekap Kas Saya</h4>
             <p class="text-muted small mb-0">Memantau riwayat iuran Anda pada periode <span class="fw-800 text-dark"><?= $active_p['nama_periode'] ?></span></p>
         </div>
-        <div class="d-flex gap-2">
-            <button onclick="window.print()" class="btn btn-white shadow-sm border-light rounded-pill px-3 fw-800">
-                <i class="fas fa-print me-2 text-muted"></i> Cetak Bukti
-            </button>
-        </div>
     </div>
 
     <!-- Summary Cards -->

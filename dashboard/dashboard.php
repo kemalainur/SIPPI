@@ -21,9 +21,8 @@ $stmtPeriode = $pdo->prepare("SELECT * FROM tabel_periode WHERE status = 'aktif'
 $stmtPeriode->execute([$active_id]);
 $periodeAktif = $stmtPeriode->fetch();
 
-// Data Fetching based on View
+// 1. Manager Stats (If Admin)
 if ($is_admin_view) {
-    // MANAGER VIEW DATA
     try {
         $stmtPengurus = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan WHERE kepengurusan_id = ?");
         $stmtPengurus->execute([$active_id]);
@@ -33,41 +32,41 @@ if ($is_admin_view) {
         $stmtBiro->execute([$active_id]);
         $totalBiro = $stmtBiro->fetchColumn();
 
-        $stmtAvg = $pdo->prepare("SELECT AVG(nilai_kpi_total) FROM tabel_nilai_kpi WHERE kepengurusan_id = ?");
-        $stmtAvg->execute([$active_id]);
+        $stmtAvg = $pdo->prepare("SELECT AVG(nilai_kpi_total) FROM tabel_nilai_kpi WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ?");
+        $stmtAvg->execute([$active_id, $periodeAktif['bulan'] ?? 0, $periodeAktif['tahun'] ?? 0]);
         $avgKPI = round($stmtAvg->fetchColumn() ?: 0, 2);
     } catch (PDOException $e) {
         $totalPengurus = $totalBiro = 0; $avgKPI = 0;
     }
-} else {
-    // PERSONAL VIEW DATA (Staff/Kadiv)
-    try {
-        // 1. Personal KPI Score (Latest)
-        $stmtMyKPI = $pdo->prepare("SELECT * FROM tabel_nilai_kpi WHERE nokta = ? AND kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC LIMIT 1");
-        $stmtMyKPI->execute([$my_nokta, $active_id]);
-        $myKPI = $stmtMyKPI->fetch();
+}
 
-        // 2. Current Month Discipline Status
-        if ($periodeAktif) {
-            // Kas
-            $stmtMyKas = $pdo->prepare("SELECT status_bayar FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
-            $stmtMyKas->execute([$my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun']]);
-            $myKas = $stmtMyKas->fetchColumn() ?: 'belum';
+// 2. Personal Metrics (For Everyone)
+try {
+    // Personal KPI Score (Latest)
+    $stmtMyKPI = $pdo->prepare("SELECT * FROM tabel_nilai_kpi WHERE nokta = ? AND kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC LIMIT 1");
+    $stmtMyKPI->execute([$my_nokta, $active_id]);
+    $myKPI = $stmtMyKPI->fetch();
 
-            // Attendance % (approximate for dashboard)
-            $stmtTotKeg = $pdo->prepare("SELECT COUNT(*) FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
-            $stmtTotKeg->execute([$periodeAktif['bulan'], $periodeAktif['tahun'], $active_id]);
-            $totKeg = max(1, $stmtTotKeg->fetchColumn());
+    // Current Month Discipline Status
+    if ($periodeAktif) {
+        // Kas
+        $stmtMyKas = $pdo->prepare("SELECT status_bayar FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
+        $stmtMyKas->execute([$my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun']]);
+        $myKas = $stmtMyKas->fetchColumn() ?: 'belum';
 
-            $stmtMyHadir = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND status_hadir = 'hadir' AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?)");
-            $stmtMyHadir->execute([$my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun'], $active_id]);
-            $myHadir = round(($stmtMyHadir->fetchColumn() / $totKeg) * 100);
-        } else {
-            $myKas = 'N/A'; $myHadir = 0;
-        }
-    } catch (PDOException $e) {
-        $myKPI = null; $myKas = 'Error'; $myHadir = 0;
+        // Attendance %
+        $stmtTotKeg = $pdo->prepare("SELECT COUNT(*) FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
+        $stmtTotKeg->execute([$periodeAktif['bulan'], $periodeAktif['tahun'], $active_id]);
+        $totKeg = max(1, $stmtTotKeg->fetchColumn());
+
+        $stmtMyHadir = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND status_hadir = 'hadir' AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?)");
+        $stmtMyHadir->execute([$my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun'], $active_id]);
+        $myHadir = round(($stmtMyHadir->fetchColumn() / $totKeg) * 100);
+    } else {
+        $myKas = 'N/A'; $myHadir = 0;
     }
+} catch (PDOException $e) {
+    $myKPI = null; $myKas = 'Error'; $myHadir = 0;
 }
 
 // 4. Universal Remaining Assessments Count (For all Raters except Super Admin)
@@ -99,7 +98,6 @@ else $greeting = "Selamat Malam";
     <div class="row align-items-center mb-4 g-3">
         <div class="col-md-6">
             <h3 class="fw-800 text-dark mb-1"><?= $greeting ?>, <?= explode(' ', $_SESSION['user']['nama'])[0] ?>! 👋</h3>
-            <p class="text-muted small">Kelola dan awasi kinerja organisasi dengan data real-time.</p>
         </div>
         <div class="col-md-6 text-md-end">
             <div class="d-inline-flex align-items-center p-2 bg-white rounded-pill shadow-sm border-light border px-4 h-100">
@@ -115,6 +113,30 @@ else $greeting = "Selamat Malam";
 
     <!-- Dashboard Content Rows -->
     <?php if ($is_admin_view): ?>
+        <!-- Quick Personal KPI Card for Admins -->
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm rounded-4 bg-gradient-brand-red text-white">
+                    <div class="card-body p-4 d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-white text-brand-red rounded-circle d-flex align-items-center justify-content-center me-3 shadow-lg" style="width: 50px; height: 50px;">
+                                <i class="fas fa-user-check fa-lg"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 fw-600 opacity-75">Performa Pribadi Saya</h6>
+                                <h3 class="mb-0 fw-800 tracking-tight">Skor KPI: <?= number_format($myKPI['nilai_kpi_total'] ?? 0, 2) ?> / 4.0</h3>
+                            </div>
+                        </div>
+                        <div class="text-end d-none d-md-block">
+                            <span class="badge bg-white text-dark rounded-pill px-3 py-2 fw-bold small shadow-sm">
+                                <i class="fas fa-calendar-day me-1"></i> Update: <?= date('M Y') ?>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- MANAGER VIEW: Organization Focus -->
         <!-- Quick Stats Row -->
         <div class="row g-4 mb-4">
@@ -250,8 +272,10 @@ else $greeting = "Selamat Malam";
                                                        JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND n.kepengurusan_id = j.kepengurusan_id
                                                        JOIN tabel_role r ON j.role_id = r.id_role
                                                        WHERE n.kepengurusan_id = ?
+                                                       AND n.bulan = ? AND n.tahun = ?
+                                                       AND r.nama_role NOT IN ('Super Admin', 'Sekjend', 'Bendum', 'PPI', 'Koorkam', 'Kabiro')
                                                        ORDER BY n.nilai_kpi_total DESC LIMIT 3");
-                            $stmtLeader->execute([$active_id]);
+                            $stmtLeader->execute([$active_id, $periodeAktif['bulan'] ?? 0, $periodeAktif['tahun'] ?? 0]);
                             $leaders = $stmtLeader->fetchAll();
 
                             if ($leaders):
@@ -307,44 +331,6 @@ else $greeting = "Selamat Malam";
                 </div>
             <?php endif; ?>
 
-            <!-- Announcements Module (Shared for All Roles) -->
-            <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-0">
-                <div class="card-header bg-white border-0 py-4 px-4 border-bottom border-light">
-                    <h6 class="mb-0 fw-800 text-dark">Pengumuman & Kegiatan</h6>
-                </div>
-                <div class="card-body p-0">
-                    <div class="list-group list-group-flush">
-                        <?php
-                        $stmtKeg = $pdo->prepare("SELECT * FROM tabel_kegiatan WHERE kepengurusan_id = ? ORDER BY id_kegiatan DESC LIMIT 4");
-                        $stmtKeg->execute([$active_id]);
-                        $kegiatans = $stmtKeg->fetchAll();
-                        if ($kegiatans):
-                            foreach ($kegiatans as $keg):
-                        ?>
-                            <div class="list-group-item p-4 border-0 border-bottom-light transparency-hover">
-                                <div class="d-flex w-100 justify-content-between mb-2">
-                                    <h6 class="fw-800 text-dark mb-0"><?= $keg['nama_kegiatan'] ?></h6>
-                                    <span class="badge bg-primary-soft text-primary rounded-pill px-3 fw-bold" style="font-size: 0.65rem; height: fit-content;"><?= $keg['bulan'] ?>/<?= $keg['tahun'] ?></span>
-                                </div>
-                                <p class="mb-0 text-muted small fw-600 opacity-75">Tersedia dalam agenda kerja sistematis <?= $active_p['nama_periode'] ?>.</p>
-                            </div>
-                        <?php 
-                            endforeach; 
-                        else:
-                        ?>
-                            <div class="text-center py-5">
-                                <i class="fas fa-calendar-xmark fa-4x text-muted opacity-10 mb-3"></i>
-                                <p class="text-muted small fw-600">Belum ada kegiatan terdaftar.</p>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="card-footer bg-white border-0 p-4 text-center">
-                    <a href="<?= base_url('ppi/bulan_penilaian.php') ?>" class="btn btn-light-soft text-primary w-100 fw-800 py-3 rounded-pill">
-                        Lihat Seluruh Agenda <i class="fas fa-external-link-alt ms-2"></i>
-                    </a>
-                </div>
-            </div>
         </div> <!-- End Right Col (col-lg-4) -->
     </div> <!-- End Main Row (row g-4 mt-2) -->
 </div> <!-- End Content Wrapper -->

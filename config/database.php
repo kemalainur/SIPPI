@@ -53,6 +53,16 @@ function get_active_kepengurusan() {
     return $stmt->fetch();
 }
 
+function get_kpi_settings() {
+    global $pdo;
+    $stmt = $pdo->query("SELECT kunci, bobot FROM tabel_pengaturan_kpi");
+    $settings = [];
+    while ($row = $stmt->fetch()) {
+        $settings[$row['kunci']] = $row['bobot'] / 100; // Store as decimal multiplier
+    }
+    return $settings;
+}
+
 /**
  * Automate KPI Calculation for a single member
  * Called on every input (penilaian, kehadiran, kas status)
@@ -112,11 +122,17 @@ function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
     $kasStatus = $stmtKas->fetchColumn();
     $scoreKas = ($kasStatus == 'sudah') ? 4 : 1;
 
-    $nilai_disiplin = ($scoreHadir * 0.4) + ($scoreTelat * 0.4) + ($scoreKas * 0.2);
+    $settings = get_kpi_settings();
+    $wHadir = $settings['weight_disiplin_hadir'] ?? 0.4;
+    $wTelat = $settings['weight_disiplin_telat'] ?? 0.4;
+    $wKas   = $settings['weight_disiplin_kas'] ?? 0.2;
+    $nilai_disiplin = ($scoreHadir * $wHadir) + ($scoreTelat * $wTelat) + ($scoreKas * $wKas);
 
     // 4. Final Score Calculation
-    // Final Score = (Attitude × 40%) + (Komunikasi × 30%) + (Disiplin × 30%)
-    $nilai_kpi_total = ($nilai_attitude * 0.4) + ($nilai_komunikasi * 0.3) + ($nilai_disiplin * 0.3);
+    $wAttitude   = $settings['weight_attitude'] ?? 0.4;
+    $wKomunikasi = $settings['weight_komunikasi'] ?? 0.3;
+    $wDisiplin   = $settings['weight_disiplin'] ?? 0.3;
+    $nilai_kpi_total = ($nilai_attitude * $wAttitude) + ($nilai_komunikasi * $wKomunikasi) + ($nilai_disiplin * $wDisiplin);
 
     // 5. Save/Update to tabel_nilai_kpi
     $stmtSave = $pdo->prepare("INSERT INTO tabel_nilai_kpi (nokta, bulan, tahun, kepengurusan_id, nilai_attitude, nilai_komunikasi, nilai_disiplin, nilai_kpi_total)

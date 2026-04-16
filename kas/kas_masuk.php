@@ -2,7 +2,7 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'Bendum']);
+check_role(['Super Admin', 'Bendum', 'PPI']);
 
 $title = "Input Kas Masuk";
 include '../layout/header.php';
