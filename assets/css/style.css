@@ -1,0 +1,239 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    /* Brand Colors - FLMPI Inspired */
+    --primary: #DC2626; /* Energetic Red */
+    --primary-light: #EF4444;
+    --primary-dark: #991B1B;
+    --secondary: #16A34A; /* Grounding Green */
+    --secondary-light: #22C55E;
+    --accent: #EAB308; /* Brand Gold */
+    
+    /* Neutral Palette */
+    --bg-main: #F8FAFC;
+    --bg-card: #FFFFFF;
+    --text-main: #0F172A;
+    --text-muted: #64748B;
+    --border-light: #E2E8F0;
+    
+    /* Premium Shadows & Effects */
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+    --radius-sm: 0.5rem;
+    --radius: 0.85rem;
+    --radius-lg: 1.25rem;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: var(--text-main);
+    background-color: var(--bg-main);
+    overflow-x: hidden;
+    letter-spacing: -0.01em;
+}
+
+/* --- Premium Sidebar --- */
+#sidebar {
+    min-width: 280px;
+    max-width: 280px;
+    background: #0F172A; /* Deep Navy */
+    color: #F8FAFC;
+    transition: var(--transition);
+    min-height: 100vh;
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.05);
+    z-index: 999;
+}
+
+#sidebar .sidebar-header {
+    padding: 3rem 1.5rem;
+    text-align: center;
+}
+
+#sidebar .sidebar-header img {
+    width: 75px;
+    height: 75px;
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.05);
+    margin-bottom: 1.25rem;
+    border-radius: var(--radius-lg);
+    transition: var(--transition);
+}
+
+#sidebar .sidebar-header h5 {
+    font-weight: 800;
+    letter-spacing: 1px;
+    font-size: 1.1rem;
+    margin-bottom: 0.2rem;
+    color: #FFFFFF;
+}
+
+#sidebar ul.components {
+    padding: 1rem 1rem;
+}
+
+#sidebar ul li a {
+    padding: 0.9rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    color: #94A3B8;
+    text-decoration: none;
+    transition: var(--transition);
+    border-radius: var(--radius);
+    margin-bottom: 0.4rem;
+}
+
+#sidebar ul li i {
+    width: 24px;
+    margin-right: 14px;
+    font-size: 1.1rem;
+    text-align: center;
+    opacity: 0.7;
+}
+
+#sidebar ul li a:hover {
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+#sidebar ul li.active > a {
+    color: #FFFFFF;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+}
+
+#sidebar ul li.active > a i {
+    opacity: 1;
+}
+
+/* --- Content Wrapper --- */
+#content {
+    background-color: var(--bg-main);
+    width: 100%;
+    padding: 2.5rem;
+    transition: var(--transition);
+}
+
+/* --- Top Navigation Glassmorphism --- */
+.navbar {
+    padding: 1.25rem 2.5rem;
+    background: rgba(255, 255, 255, 0.75) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    margin-bottom: 2.5rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+/* --- Premium Cards --- */
+.card {
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    background: var(--bg-card);
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+    border: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.card:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+.card-header {
+    background: transparent !important;
+    border-bottom: 1px solid var(--border-light);
+    padding: 1.75rem;
+}
+
+.card-title {
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 0;
+    letter-spacing: -0.02em;
+}
+
+/* --- Buttons --- */
+.btn {
+    padding: 0.65rem 1.5rem;
+    font-weight: 700;
+    border-radius: var(--radius);
+    transition: var(--transition);
+    letter-spacing: 0.02em;
+}
+
+.btn-primary, .btn-brand-red {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border: none;
+    color: #FFFFFF;
+}
+
+.btn-primary:hover, .btn-brand-red:hover {
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.25);
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+}
+
+.btn-success, .btn-brand-green {
+    background: linear-gradient(135deg, var(--secondary) 0%, #15803D 100%);
+    border: none;
+    color: #FFFFFF;
+}
+
+/* Brand Utility Classes */
+.text-brand-red { color: var(--primary) !important; }
+.text-brand-green { color: var(--secondary) !important; }
+.text-brand-gold { color: var(--accent) !important; }
+
+.bg-brand-red { background-color: var(--primary) !important; }
+.bg-brand-red-soft { background-color: #FEF2F2 !important; color: var(--primary) !important; }
+.bg-brand-green { background-color: var(--secondary) !important; }
+.bg-brand-green-soft { background-color: #F0FDF4 !important; color: var(--secondary) !important; }
+.bg-brand-gold { background-color: var(--accent) !important; }
+.bg-brand-gold-soft { background-color: #FEFCE8 !important; color: #854D0E !important; }
+
+/* Compatibility Mappings */
+.bg-emerald { background-color: var(--secondary) !important; color: #fff !important; }
+.text-emerald { color: var(--secondary) !important; }
+.bg-emerald-soft { background-color: #F0FDF4 !important; color: var(--secondary) !important; }
+.btn-emerald { background-color: var(--secondary) !important; border-color: var(--secondary) !important; color: #fff !important; }
+.btn-emerald:hover { filter: brightness(1.1) !important; }
+
+/* Dashboard Specific Icons */
+.stats-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 1rem;
+    transition: var(--transition);
+}
+
+/* Animations */
+.fade-in {
+    animation: fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
