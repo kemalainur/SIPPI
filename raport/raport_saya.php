@@ -97,7 +97,7 @@ if ($latest) {
 }
 ?>
 
-<<div id="content" class="fade-in">
+<div id="content" class="fade-in">
     <div class="d-flex justify-content-between align-items-center mb-4 g-3 flex-wrap">
         <div>
             <h4 class="fw-800 text-brand-red mb-1"><?= ($view_nokta == $nokta) ? 'Performa & Raport Saya' : 'Performa: '.$member_name ?></h4>

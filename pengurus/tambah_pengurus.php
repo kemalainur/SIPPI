@@ -36,40 +36,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $role_id = $_POST['role_id'];
     $password = $_POST['password'];
 
-    try {
-        $pdo->beginTransaction();
+    // SECURITY CHECK: Sekjend cannot create Super Admin
+    $stmtRoleCheck = $pdo->prepare("SELECT nama_role FROM tabel_role WHERE id_role = ?");
+    $stmtRoleCheck->execute([$role_id]);
+    $new_role_name = $stmtRoleCheck->fetchColumn();
 
-        // 1. Save Static Info (ignore if exists, but we usually check)
-        $stmtStatic = $pdo->prepare("INSERT INTO tabel_pengurus (nokta, nama, angkatan, no_hp, password) 
-                                     VALUES (?, ?, ?, ?, ?) 
-                                     ON DUPLICATE KEY UPDATE nama=?, angkatan=?, no_hp=?, password=?");
-        $stmtStatic->execute([$nokta, $nama, $angkatan, $no_hp, $password, $nama, $angkatan, $no_hp, $password]);
+    if ($_SESSION['user']['nama_role'] == 'Sekjend' && $new_role_name == 'Super Admin') {
+        $error = "Akses Ditolak: Sekjend tidak diperbolehkan membuat akun dengan level Super Admin.";
+    } else {
+        try {
+            $pdo->beginTransaction();
 
-        // 2. Save Position for Active Period
-        $stmtJabatan = $pdo->prepare("INSERT INTO tabel_pengurus_jabatan 
-                                      (nokta, kepengurusan_id, biro_id, divisi_id, role_id, jabatan) 
-                                      VALUES (?, ?, ?, ?, ?, ?)
-                                      ON DUPLICATE KEY UPDATE biro_id=?, divisi_id=?, role_id=?, jabatan=?");
-        $stmtJabatan->execute([
-            $nokta,
-            $active_p['id_kepengurusan'],
-            $biro_id,
-            $divisi_id,
-            $role_id,
-            $jabatan,
-            $biro_id,
-            $divisi_id,
-            $role_id,
-            $jabatan
-        ]);
+            // 1. Save Static Info (ignore if exists, but we usually check)
+            $stmtStatic = $pdo->prepare("INSERT INTO tabel_pengurus (nokta, nama, angkatan, no_hp, password) 
+                                         VALUES (?, ?, ?, ?, ?) 
+                                         ON DUPLICATE KEY UPDATE nama=?, angkatan=?, no_hp=?, password=?");
+            $stmtStatic->execute([$nokta, $nama, $angkatan, $no_hp, $password, $nama, $angkatan, $no_hp, $password]);
 
-        $pdo->commit();
-        $_SESSION['success'] = "Pengurus berhasil ditambahkan/diperbarui di periode aktif!";
-        header("Location: data_pengurus.php");
-        exit;
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        $error = "Terjadi kesalahan: " . $e->getMessage();
+            // 2. Save Position for Active Period
+            $stmtJabatan = $pdo->prepare("INSERT INTO tabel_pengurus_jabatan 
+                                          (nokta, kepengurusan_id, biro_id, divisi_id, role_id, jabatan) 
+                                          VALUES (?, ?, ?, ?, ?, ?)
+                                          ON DUPLICATE KEY UPDATE biro_id=?, divisi_id=?, role_id=?, jabatan=?");
+            $stmtJabatan->execute([
+                $nokta,
+                $active_p['id_kepengurusan'],
+                $biro_id,
+                $divisi_id,
+                $role_id,
+                $jabatan,
+                $biro_id,
+                $divisi_id,
+                $role_id,
+                $jabatan
+            ]);
+
+            $pdo->commit();
+            $_SESSION['success'] = "Pengurus berhasil ditambahkan/diperbarui di periode aktif!";
+            header("Location: data_pengurus.php");
+            exit;
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $error = "Terjadi kesalahan: " . $e->getMessage();
+        }
     }
 }
 include '../layout/header.php';
@@ -171,7 +180,10 @@ include '../layout/sidebar.php';
                             (Akses)</label>
                         <select name="role_id" class="form-select form-select-lg bg-light border-0" required>
                             <option value="">-- Pilih Level Akses --</option>
-                            <?php foreach ($roles as $r): ?>
+                            <?php foreach ($roles as $r): 
+                                // Hide Super Admin role from Sekjend
+                                if ($_SESSION['user']['nama_role'] == 'Sekjend' && $r['nama_role'] == 'Super Admin') continue;
+                            ?>
                                 <option value="<?= $r['id_role'] ?>"><?= $r['nama_role'] ?></option>
                             <?php endforeach; ?>
                         </select>

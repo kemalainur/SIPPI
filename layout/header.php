@@ -14,6 +14,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="<?= base_url('assets/css/style.css') ?>" rel="stylesheet">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="<?= base_url('assets/img/logo.png') ?>">
+    <link rel="apple-touch-icon" href="<?= base_url('assets/img/logo.png') ?>">
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="SIPPI - Sistem Informasi Performa Pengurus Intern FLMPI">
+    <meta name="author" content="FLMPI">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -47,14 +53,15 @@
                         <h6 class="mb-0 fw-800 text-brand-red">SIPPI</h6>
                     </div>
                     <button id="sidebarCollapse" class="btn btn-light-soft shadow-sm border py-1 px-2">
-                        <i class="fas fa-bars"></i>
+                        <i class="fa-solid fa-bars"></i>
                     </button>
                 </div>
             `;
             contentDiv.insertAdjacentHTML('afterbegin', mobileHeader);
             
-            // Re-assign collapse event as it was just injected
-            document.getElementById('sidebarCollapse').addEventListener('click', toggleSidebar);
+            // Re-assign toggle event
+            const btnToggle = document.getElementById('sidebarCollapse');
+            if(btnToggle) btnToggle.addEventListener('click', toggleSidebar);
         }
 
         if(btnClose) btnClose.addEventListener('click', toggleSidebar);

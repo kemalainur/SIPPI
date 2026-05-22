@@ -25,7 +25,13 @@ try {
 
 // Global Help Functions
 function base_url($path = '') {
-    return '/sippi/' . ltrim($path, '/');
+    // Detect if running on local XAMPP or Live Domain
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'];
+    
+    // If on localhost/sippi, keep /sippi/, otherwise use root
+    $base = ($host === 'localhost') ? '/sippi/' : '/';
+    return $base . ltrim($path, '/');
 }
 
 function redirect($path) {
@@ -42,7 +48,7 @@ function check_login() {
 function check_role($roles) {
     if (!in_array($_SESSION['user']['nama_role'] ?? '', (array)$roles)) {
         $_SESSION['error'] = 'Anda tidak memiliki hak akses ke halaman ini.';
-        header("Location: /sippi/dashboard/dashboard.php");
+        header("Location: " . base_url('dashboard/dashboard.php'));
         exit;
     }
 }
@@ -143,6 +149,5 @@ function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
         $nilai_attitude, $nilai_komunikasi, $nilai_disiplin, $nilai_kpi_total
     ]);
 }
-?>
 
 

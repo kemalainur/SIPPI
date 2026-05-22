@@ -208,11 +208,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .credits {
             position: absolute;
             bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
             color: #94A3B8;
             font-size: 0.75rem;
             letter-spacing: 1px;
             text-transform: uppercase;
             font-weight: 600;
+            z-index: 10;
         }
     </style>
 </head>

@@ -11,8 +11,8 @@ $role = $_SESSION['user']['nama_role'];
             <img src="<?= base_url('assets/img/logo.png') ?>" alt="Logo" class="img-fluid rounded-circle shadow-lg border border-3 border-brand-gold p-1" style="width: 75px; background: #fff;">
             <span class="position-absolute bottom-0 end-0 p-2 bg-success border border-3 border-dark rounded-circle shadow-sm" style="margin-bottom: 2px; margin-right: 2px;"></span>
         </div>
-        <h5 class="mb-0 fw-800 text-white ls-1">FLMPI SIPPI</h5>
-        <p class="text-muted mb-0 opacity-50" style="font-size: 0.65rem; letter-spacing: 2px; font-weight: 700;">FORUM MAHASISWA</p>
+        <h5 class="mb-0 fw-800 text-white ls-1">SIPPI FLMPI</h5>
+        <p class="text-white mb-0 opacity-50" style="font-size: 0.65rem; letter-spacing: 2px; font-weight: 700;">POLITEKNIK STMI JAKARTA</p>
     </div>
 
     <ul class="list-unstyled components">
@@ -102,6 +102,13 @@ $role = $_SESSION['user']['nama_role'];
             </a>
         </li>
     </ul>
+
+    <div class="sidebar-footer p-4 mt-auto border-top border-light-soft text-center">
+        <p class="mb-0 text-white opacity-50" style="font-size: 0.65rem; letter-spacing: 1px; font-weight: 600;">
+            &copy; <?= date('Y') ?> SIPPI <br>
+            <span class="text-uppercase" style="font-size: 0.55rem; opacity: 0.8;">Developed by Tim PPI</span>
+        </p>
+    </div>
 </nav>
 
 

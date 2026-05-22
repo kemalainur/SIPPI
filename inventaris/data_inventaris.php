@@ -187,5 +187,3 @@ $items = $pdo->query("SELECT * FROM tabel_inventaris ORDER BY nama_barang ASC")-
 <?php include '../layout/footer.php'; ?>
 
 <?php include '../layout/footer.php'; ?>
-
-

@@ -10,13 +10,11 @@ include '../layout/sidebar.php';
 
 $message = '';
 
-// Fetch ACTIVE period
 $active_p = get_active_kepengurusan();
 if (!$active_p) {
     die("Error: Tidak ada Tahun Kepengurusan yang aktif. Silakan hubungi Super Admin.");
 }
 
-// Handle CRUD Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add'])) {
         $nama_divisi = $_POST['nama_divisi'];
@@ -42,7 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Fetch Divisi for ACTIVE PERIOD
 $stmt = $pdo->prepare("SELECT d.*, b.nama_biro 
                        FROM tabel_divisi d 
                        JOIN tabel_biro b ON d.biro_id = b.id_biro 
@@ -51,7 +48,6 @@ $stmt = $pdo->prepare("SELECT d.*, b.nama_biro
 $stmt->execute([$active_p['id_kepengurusan']]);
 $divisis = $stmt->fetchAll();
 
-// Fetch Biros for Dropdown (Filtered by period)
 $stmtBiro = $pdo->prepare("SELECT * FROM tabel_biro WHERE kepengurusan_id = ? ORDER BY nama_biro ASC");
 $stmtBiro->execute([$active_p['id_kepengurusan']]);
 $biros = $stmtBiro->fetchAll();
@@ -119,7 +115,6 @@ $biros = $stmtBiro->fetchAll();
                             </td>
                         </tr>
 
-                        <!-- Edit Modal -->
                         <div class="modal fade" id="editModal<?= $d['id_divisi'] ?>" tabindex="-1">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content border-0 shadow-lg" style="border-radius: 1.25rem;">
@@ -152,7 +147,6 @@ $biros = $stmtBiro->fetchAll();
                             </div>
                         </div>
 
-                        <!-- Delete Modal -->
                         <div class="modal fade" id="deleteModal<?= $d['id_divisi'] ?>" tabindex="-1">
                             <div class="modal-dialog modal-sm modal-dialog-centered">
                                 <div class="modal-content border-0 shadow-lg" style="border-radius: 1.25rem;">
@@ -191,7 +185,6 @@ $biros = $stmtBiro->fetchAll();
     </div>
 </div>
 
-<!-- Add Modal -->
 <div class="modal fade" id="addModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 1.5rem;">

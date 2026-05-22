@@ -7,6 +7,18 @@ check_role(['Super Admin', 'Sekjend', 'PPI']);
 // Handle Delete (Global delete from system)
 if (isset($_GET['delete'])) {
     $nokta = $_GET['delete'];
+    
+    // SECURITY CHECK: Fetch target user's role before deleting
+    $stmtCheck = $pdo->prepare("SELECT r.nama_role FROM tabel_pengurus_jabatan j JOIN tabel_role r ON j.role_id = r.id_role WHERE j.nokta = ? LIMIT 1");
+    $stmtCheck->execute([$nokta]);
+    $target_role = $stmtCheck->fetchColumn();
+
+    if ($_SESSION['user']['nama_role'] == 'Sekjend' && $target_role == 'Super Admin') {
+        $_SESSION['error'] = "Akses Ditolak: Sekjend tidak diperbolehkan menghapus data Super Admin.";
+        header("Location: data_pengurus.php");
+        exit;
+    }
+
     $stmt = $pdo->prepare("DELETE FROM tabel_pengurus WHERE nokta = ?");
     if ($stmt->execute([$nokta])) {
         $_SESSION['success'] = "Data pengurus berhasil dihapus dari sistem!";
@@ -33,6 +45,12 @@ $message = '';
 if (isset($_SESSION['success'])) {
     $message = $_SESSION['success'];
     unset($_SESSION['success']);
+}
+
+$error_msg = '';
+if (isset($_SESSION['error'])) {
+    $error_msg = $_SESSION['error'];
+    unset($_SESSION['error']);
 }
 
 // Fetch Pengurus with filters
@@ -116,6 +134,14 @@ $pengurus = $stmt->fetchAll();
         </div>
     <?php endif; ?>
 
+    <?php if ($error_msg): ?>
+        <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show d-flex align-items-center rounded-3 p-3 mb-4" role="alert">
+            <i class="fas fa-exclamation-triangle fa-lg me-3"></i>
+            <div><?= $error_msg ?></div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif; ?>
+
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -182,6 +208,10 @@ $pengurus = $stmt->fetchAll();
                             <?php endif; ?>
                             <td class="text-center pe-4">
                                 <div class="d-flex justify-content-center gap-1">
+                                    <?php 
+                                    $can_edit = !($_SESSION['user']['nama_role'] == 'Sekjend' && $p['nama_role'] == 'Super Admin');
+                                    if ($can_edit): 
+                                    ?>
                                     <a href="edit_pengurus.php?nokta=<?= $p['nokta'] ?>&context_period=<?= $filter_period ?>" 
                                        class="btn btn-icon btn-light-soft text-primary" title="Edit Data">
                                         <i class="fas fa-edit"></i>
@@ -191,6 +221,9 @@ $pengurus = $stmt->fetchAll();
                                             title="Hapus Permanen">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
+                                    <?php else: ?>
+                                        <span class="badge bg-light text-muted opacity-50"><i class="fas fa-lock me-1"></i> Terkunci</span>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>

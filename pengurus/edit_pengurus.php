@@ -21,15 +21,23 @@ if (!$context_period_id) {
     $context_period_id = $active_p['id_kepengurusan'] ?? '';
 }
 
-// Fetch Static Data + Context Position
-$stmt = $pdo->prepare("SELECT p.*, j.biro_id, j.divisi_id, j.role_id, j.jabatan 
+// Fetch Static Data + Context Position + Role Name
+$stmt = $pdo->prepare("SELECT p.*, j.biro_id, j.divisi_id, j.role_id, j.jabatan, r.nama_role 
                         FROM tabel_pengurus p 
                         LEFT JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                        LEFT JOIN tabel_role r ON j.role_id = r.id_role
                         WHERE p.nokta = ?");
 $stmt->execute([$context_period_id, $nokta]);
 $p = $stmt->fetch();
 
 if (!$p) {
+    header("Location: data_pengurus.php");
+    exit;
+}
+
+// SECURITY: Sekjend cannot edit Super Admin
+if ($_SESSION['user']['nama_role'] == 'Sekjend' && $p['nama_role'] == 'Super Admin') {
+    $_SESSION['error'] = "Akses Ditolak: Sekjend tidak diperbolehkan mengubah data Super Admin.";
     header("Location: data_pengurus.php");
     exit;
 }
@@ -68,6 +76,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // 2. Update Position for the context period
+        // SECURITY CHECK: Sekjend cannot promote anyone to Super Admin
+        $stmtRoleCheck = $pdo->prepare("SELECT nama_role FROM tabel_role WHERE id_role = ?");
+        $stmtRoleCheck->execute([$role_id]);
+        $new_role_name = $stmtRoleCheck->fetchColumn();
+
+        if ($_SESSION['user']['nama_role'] == 'Sekjend' && $new_role_name == 'Super Admin') {
+            throw new Exception("Sekjend tidak diperbolehkan memberikan akses Super Admin.");
+        }
+
         $stmtJabatan = $pdo->prepare("INSERT INTO tabel_pengurus_jabatan 
                                       (nokta, kepengurusan_id, biro_id, divisi_id, role_id, jabatan) 
                                       VALUES (?, ?, ?, ?, ?, ?)
@@ -163,7 +180,10 @@ include '../layout/sidebar.php';
                         <label class="form-label small fw-800 text-muted text-uppercase ls-1">Role Sistem (Akses)</label>
                         <select name="role_id" class="form-select form-select-lg bg-light border-0" required>
                             <option value="">-- Pilih Akses Role --</option>
-                            <?php foreach($roles as $r): ?>
+                            <?php foreach($roles as $r): 
+                                // Hide Super Admin role from Sekjend
+                                if ($_SESSION['user']['nama_role'] == 'Sekjend' && $r['nama_role'] == 'Super Admin') continue;
+                            ?>
                             <option value="<?= $r['id_role'] ?>" <?= ($r['id_role'] == $p['role_id']) ? 'selected' : '' ?>><?= $r['nama_role'] ?></option>
                             <?php endforeach; ?>
                         </select>

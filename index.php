@@ -3,11 +3,9 @@ require_once 'config/database.php';
 session_start();
 
 if (isset($_SESSION['user'])) {
-    header("Location: dashboard/dashboard.php");
+    header("Location: " . base_url('dashboard/dashboard.php'));
 } else {
-    header("Location: auth/login.php");
+    header("Location: " . base_url('auth/login.php'));
 }
 exit;
 ?>
-
-
