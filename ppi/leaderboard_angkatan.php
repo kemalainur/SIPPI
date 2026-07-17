@@ -2,17 +2,16 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'PPI', 'Sekjend', 'Bendum', 'Koorkam', 'Kabiro']);
+check_permission('leaderboard.view');
+
 
 $title = "Leaderboard Angkatan";
 include '../layout/header.php';
 include '../layout/sidebar.php';
 
-// Active Grand Period
 $active_p = get_active_kepengurusan();
 $active_id = $active_p['id_kepengurusan'] ?? 0;
 
-// Active Month
 $stmtAktif = $pdo->prepare("SELECT * FROM tabel_periode WHERE status = 'aktif' AND kepengurusan_id = ? LIMIT 1");
 $stmtAktif->execute([$active_id]);
 $activeM = $stmtAktif->fetch();
@@ -20,18 +19,15 @@ $activeM = $stmtAktif->fetch();
 $bulan = $activeM['bulan'] ?? null;
 $tahun = $activeM['tahun'] ?? null;
 
-// Fetch All Available Periods for Filter
 $stmtAllP = $pdo->prepare("SELECT bulan, tahun FROM tabel_periode WHERE kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC");
 $stmtAllP->execute([$active_id]);
 $allPeriods = $stmtAllP->fetchAll();
 
-// Determine View Period (Default to Active, override by GET)
 $view_bulan = isset($_GET['bulan']) ? (int)$_GET['bulan'] : ($activeM['bulan'] ?? null);
 $view_tahun = isset($_GET['tahun']) ? (int)$_GET['tahun'] : ($activeM['tahun'] ?? null);
 
 $is_historical = ($view_bulan != ($activeM['bulan'] ?? 0) || $view_tahun != ($activeM['tahun'] ?? 0));
 
-// Excluded roles logic
 $excludedRoles = "'Super Admin', 'Sekjend', 'Bendum', 'PPI', 'Koorkam', 'Kabiro'";
 
 function getLeaderboardByAngkatan($pdo, $active_id, $bulan, $tahun, $angkatan, $excludedRoles) {
@@ -83,7 +79,6 @@ $leaderboard2025 = getLeaderboardByAngkatan($pdo, $active_id, $view_bulan, $view
     </div>
 
     <div class="row g-4">
-        <!-- Angkatan 2024 -->
         <div class="col-lg-6">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100">
                 <div class="card-header bg-white py-4 px-4 border-bottom border-light d-flex justify-content-between align-items-center">
@@ -128,7 +123,6 @@ $leaderboard2025 = getLeaderboardByAngkatan($pdo, $active_id, $view_bulan, $view
             </div>
         </div>
 
-        <!-- Angkatan 2025 -->
         <div class="col-lg-6">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100">
                 <div class="card-header bg-white py-4 px-4 border-bottom border-light d-flex justify-content-between align-items-center">

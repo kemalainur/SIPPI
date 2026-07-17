@@ -14,7 +14,6 @@ $title = "Rekap Kas Saya";
 include '../layout/header.php';
 include '../layout/sidebar.php';
 
-// Fetch all monthly status for this user in this period
 $stmtHistory = $pdo->prepare("SELECT v.*, k.status_bayar, k.tanggal_bayar, k.nominal as nominal_bayar
                              FROM tabel_kas_periode_wajib v
                              LEFT JOIN tabel_kas_pengurus k ON v.bulan = k.bulan AND v.tahun = k.tahun AND k.nokta_pengurus = ?
@@ -38,7 +37,6 @@ $monthNames = [
         </div>
     </div>
 
-    <!-- Summary Cards -->
     <div class="row g-3 mb-4">
         <?php
         $totalPaid = 0;
@@ -72,7 +70,6 @@ $monthNames = [
         </div>
     </div>
 
-    <!-- Payment List -->
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
         <div class="card-body p-0">
             <div class="table-responsive">

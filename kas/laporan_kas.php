@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'Bendum', 'Sekjend', 'Koorkam', 'PPI', 'Kabiro', 'Kadiv', 'Staff']);
+check_permission('kas.view');
+
 
 $title = "Laporan Kas Organisasi";
 include '../layout/header.php';
@@ -22,7 +23,6 @@ $totalMasuk = $totalIuran + ($umum['total_masuk'] ?? 0);
 $totalKeluar = $umum['total_keluar'] ?? 0;
 $saldo = $totalMasuk - $totalKeluar;
 
-// Fetch Combined Transactions (Iuran & Umum)
 $queryTransactions = "
     (SELECT k.tanggal_bayar as tanggal, CONCAT('Penerimaan Kas: ', p.nama, ' (Bulan ', k.bulan, ')') as keterangan, 'masuk' as jenis, k.nominal as jumlah, 'iuran' as source
      FROM tabel_kas_pengurus k
@@ -54,7 +54,6 @@ $transactions = $pdo->query($queryTransactions)->fetchAll();
         <?php endif; ?>
     </div>
 
-    <!-- Summary Cards -->
     <div class="row g-4 mb-4">
         <div class="col-md-4">
             <div class="card border-0 shadow-sm overflow-hidden bg-gradient-emerald text-white">

@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'Bendum', 'PPI']);
+check_permission('kas.manage');
+
 
 $title = "Pengaturan Kas Baru";
 include '../layout/header.php';
@@ -15,7 +16,6 @@ if (!$active_p) {
     die("Error: Tidak ada Tahun Kepengurusan yang aktif.");
 }
 
-// Handle CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add_periode'])) {
         $bulan = $_POST['bulan'];
@@ -39,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Fetch mandatory periods
 $stmt = $pdo->prepare("SELECT * FROM tabel_kas_periode_wajib WHERE kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC");
 $stmt->execute([$active_p['id_kepengurusan']]);
 $mandatories = $stmt->fetchAll();
@@ -80,7 +79,6 @@ $indonesian_months = [
     <?php endif; ?>
 
     <div class="row g-4">
-        <!-- Form Tagihan Baru -->
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
                 <div class="card-header bg-white border-0 py-4 px-4 border-bottom border-light">

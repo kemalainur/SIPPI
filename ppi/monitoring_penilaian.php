@@ -2,15 +2,14 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'PPI']);
+check_permission('kpi.view');
 
-// Active Grand Period
+
 $active_p = get_active_kepengurusan();
 if (!$active_p) {
     die("Error: Tahun Kepengurusan tidak aktif.");
 }
 
-// Active Month
 $stmtAktif = $pdo->prepare("SELECT * FROM tabel_periode WHERE status = 'aktif' AND kepengurusan_id = ? LIMIT 1");
 $stmtAktif->execute([$active_p['id_kepengurusan']]);
 $active = $stmtAktif->fetch();
@@ -33,7 +32,6 @@ if (!$active) {
 $bulan = $active['bulan'];
 $tahun = $active['tahun'];
 
-// Fetch all members who SHOULD rate in THIS PERIOD
 $stmtMonitoring = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role,
                                  (SELECT COUNT(DISTINCT dinilai_nokta) FROM tabel_penilaian WHERE penilai_nokta = p.nokta AND bulan = ? AND tahun = ?) as total_dinilai
                                  FROM tabel_pengurus p
@@ -44,7 +42,6 @@ $stmtMonitoring = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role,
 $stmtMonitoring->execute([$bulan, $tahun, $active_p['id_kepengurusan']]);
 $monitoring = $stmtMonitoring->fetchAll();
 
-// Count total possible ratees (everyone except Super Admin)
 $stmtRatees = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan j 
                              JOIN tabel_role r ON j.role_id = r.id_role
                              WHERE j.kepengurusan_id = ? 
@@ -52,7 +49,6 @@ $stmtRatees = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan j
 $stmtRatees->execute([$active_p['id_kepengurusan']]);
 $countTotalPengurus = (int)$stmtRatees->fetchColumn();
 
-// Process each rater with target (Total Pengurus - 1)
 $monitoring = array_map(function($m) use ($countTotalPengurus) {
     $m['target'] = max(0, $countTotalPengurus - 1);
     $m['is_done'] = $m['total_dinilai'] >= $m['target'];
@@ -75,7 +71,6 @@ include '../layout/sidebar.php';
         </div>
     </div>
 
-    <!-- Stats Summary Ribbon -->
     <div class="row g-3 mb-4">
         <div class="col-md-4">
             <div class="card border-0 shadow-sm rounded-4 bg-white">
@@ -185,7 +180,6 @@ include '../layout/sidebar.php';
         </div>
     </div>
 
-    <!-- KPI Results Table -->
     <div class="mb-4 mt-5">
         <h4 class="fw-800 text-brand-red mb-1">Hasil Kalkulasi KPI</h4>
         <p class="text-muted small mb-0">Nilai akhir yang tersimpan di sistem untuk periode <span class="fw-800 text-dark"><?= $bulan ?>/<?= $tahun ?></span></p>

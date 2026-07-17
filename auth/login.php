@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nokta = $_POST['nokta'];
     $password = $_POST['password'];
 
-    $stmt = $pdo->prepare("SELECT p.*, r.nama_role, j.biro_id, j.divisi_id, j.jabatan 
+    $stmt = $pdo->prepare("SELECT p.*, j.role_id AS role_id, r.nama_role, j.biro_id, j.divisi_id, j.jabatan 
                            FROM tabel_pengurus p 
                            LEFT JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta 
                            LEFT JOIN tabel_role r ON j.role_id = r.id_role 
@@ -32,10 +32,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'role_id' => $user['role_id'],
             'nama_role' => $user['nama_role']
         ];
+        if (isset($_SESSION['login_attempts'][$nokta])) {
+            unset($_SESSION['login_attempts'][$nokta]);
+        }
         header("Location: ../dashboard/dashboard.php");
         exit;
     } else {
-        $error = 'No. KTA atau Password salah!';
+        $_SESSION['login_attempts'][$nokta] = ($_SESSION['login_attempts'][$nokta] ?? 0) + 1;
+        if ($_SESSION['login_attempts'][$nokta] >= 3) {
+            $error = 'Anda telah salah memasukkan password sebanyak 3 kali atau lebih. Silakan hubungi TIM PPI untuk melakukan reset password akun Anda.';
+        } else {
+            $error = 'No. KTA atau Password salah!';
+        }
     }
 }
 ?>
@@ -66,7 +74,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             position: relative;
         }
 
-        /* Subtle Geometric Background Pattern */
         body::before {
             content: '';
             position: absolute;

@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'PPI']);
+check_permission('ppi.manage');
+
 
 $title = "Periode & Kegiatan";
 include '../layout/header.php';
@@ -10,13 +11,11 @@ include '../layout/sidebar.php';
 
 $message = '';
 
-// Fetch ACTIVE Tahun Kepengurusan
 $active_p = get_active_kepengurusan();
 if (!$active_p) {
     die("Error: Tidak ada Tahun Kepengurusan yang aktif.");
 }
 
-// Handle Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['open_periode'])) {
         $bulan = $_POST['bulan'];
@@ -67,17 +66,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Fetch ACTIVE Bulan Penilaian
 $stmtAktif = $pdo->prepare("SELECT * FROM tabel_periode WHERE status = 'aktif' AND kepengurusan_id = ? LIMIT 1");
 $stmtAktif->execute([$active_p['id_kepengurusan']]);
 $active = $stmtAktif->fetch();
 
-// Fetch ALL Bulan Penilaian for History Table (from current year)
 $stmtHistory = $pdo->prepare("SELECT * FROM tabel_periode WHERE kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC");
 $stmtHistory->execute([$active_p['id_kepengurusan']]);
 $history = $stmtHistory->fetchAll();
 
-// Fetch Activities for the SELECTED/ACTIVE Bulan
 $kegiatans = [];
 if ($active) {
     $stmtKeg = $pdo->prepare("SELECT * FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
@@ -115,7 +111,6 @@ $indonesian_months = [
     <?php endif; ?>
 
     <div class="row g-4">
-        <!-- Status Bulan Aktif -->
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
                 <div class="card-header bg-white border-0 py-3 px-4">
@@ -153,7 +148,6 @@ $indonesian_months = [
             </div>
         </div>
 
-        <!-- Daftar Kegiatan & Riwayat -->
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
                 <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
@@ -188,49 +182,7 @@ $indonesian_months = [
                                                 <button class="btn btn-icon btn-light-soft text-danger" data-bs-toggle="modal" data-bs-target="#deleteKegiatanModal<?= $k['id_kegiatan'] ?>" title="Hapus Kegiatan"><i class="fas fa-trash-alt small"></i></button>
                                             </div>
                                         </td>
-                                    </tr>
-
-                                    <!-- Modals for this activity -->
-                                    <div class="modal fade" id="editKegiatanModal<?= $k['id_kegiatan'] ?>" tabindex="-1">
-                                        <div class="modal-dialog modal-dialog-centered modal-sm">
-                                            <div class="modal-content border-0 shadow-lg rounded-4">
-                                                <form method="POST">
-                                                    <div class="modal-header border-0 p-4 pb-0">
-                                                        <h6 class="fw-800">Ubah Kegiatan</h6>
-                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                                    </div>
-                                                    <div class="modal-body p-4">
-                                                        <input type="hidden" name="id_kegiatan" value="<?= $k['id_kegiatan'] ?>">
-                                                        <div class="mb-3">
-                                                            <label class="form-label small fw-800 text-muted text-uppercase">Nama Kegiatan</label>
-                                                            <input type="text" name="nama_kegiatan" value="<?= $k['nama_kegiatan'] ?>" class="form-control border-0 bg-light fw-600" required>
-                                                        </div>
-                                                        <button type="submit" name="edit_kegiatan" class="btn btn-primary w-100 fw-800 shadow-sm">Simpan Perubahan</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="modal fade" id="deleteKegiatanModal<?= $k['id_kegiatan'] ?>" tabindex="-1">
-                                        <div class="modal-dialog modal-dialog-centered modal-sm">
-                                            <div class="modal-content border-0 shadow-lg rounded-4 p-4 text-center">
-                                                <div class="stats-icon bg-danger-soft text-danger mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 20px;">
-                                                    <i class="fas fa-exclamation-triangle fa-2x"></i>
-                                                </div>
-                                                <h5 class="fw-800 text-dark">Hapus Kegiatan?</h5>
-                                                <p class="text-muted small">Tindakan ini akan menghapus seluruh data kehadiran yang sudah diinput untuk kegiatan ini.</p>
-                                                <form method="POST">
-                                                    <input type="hidden" name="id_kegiatan" value="<?= $k['id_kegiatan'] ?>">
-                                                    <div class="d-flex gap-2 mt-3">
-                                                        <button type="button" class="btn btn-light w-100 fw-600" data-bs-dismiss="modal">Batal</button>
-                                                        <button type="submit" name="delete_kegiatan" class="btn btn-danger w-100 fw-800">Ya, Hapus</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
+                                    </tr>                                <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
                                         <td colspan="3" class="text-center py-5">
@@ -299,7 +251,6 @@ $indonesian_months = [
     </div>
 </div>
 
-<!-- All Modals Compiled -->
 <div class="modal fade" id="openModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
@@ -407,6 +358,51 @@ $indonesian_months = [
     </div>
 </div>
 <?php endforeach; ?>
+
+<!-- Kegiatan Modals Definitions -->
+<?php if ($kegiatans): foreach($kegiatans as $k): ?>
+<!-- Edit Kegiatan Modal -->
+<div class="modal fade" id="editKegiatanModal<?= $k['id_kegiatan'] ?>" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <form method="POST">
+                <div class="modal-header border-0 p-4 pb-0">
+                    <h6 class="fw-800">Ubah Kegiatan</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <input type="hidden" name="id_kegiatan" value="<?= $k['id_kegiatan'] ?>">
+                    <div class="mb-3">
+                        <label class="form-label small fw-800 text-muted text-uppercase">Nama Kegiatan</label>
+                        <input type="text" name="nama_kegiatan" value="<?= $k['nama_kegiatan'] ?>" class="form-control border-0 bg-light fw-600" required>
+                    </div>
+                    <button type="submit" name="edit_kegiatan" class="btn btn-primary w-100 fw-800 shadow-sm">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Kegiatan Modal -->
+<div class="modal fade" id="deleteKegiatanModal<?= $k['id_kegiatan'] ?>" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg rounded-4 p-4 text-center">
+            <div class="stats-icon bg-danger-soft text-danger mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 20px;">
+                <i class="fas fa-exclamation-triangle fa-2x"></i>
+            </div>
+            <h5 class="fw-800 text-dark">Hapus Kegiatan?</h5>
+            <p class="text-muted small">Tindakan ini akan menghapus seluruh data kehadiran yang sudah diinput untuk kegiatan ini.</p>
+            <form method="POST">
+                <input type="hidden" name="id_kegiatan" value="<?= $k['id_kegiatan'] ?>">
+                <div class="d-flex gap-2 mt-3">
+                    <button type="button" class="btn btn-light w-100 fw-600" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" name="delete_kegiatan" class="btn btn-danger w-100 fw-800">Ya, Hapus</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endforeach; endif; ?>
 
 <style>
 .bg-gradient-emerald { background: linear-gradient(135deg, #DC2626 0%, #10b981 100%); }

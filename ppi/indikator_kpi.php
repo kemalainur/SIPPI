@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'PPI']);
+check_permission('kpi.manage');
+
 
 $title = "Kelola Indikator KPI";
 include '../layout/header.php';
@@ -82,7 +83,6 @@ $indicators = $pdo->query("SELECT * FROM tabel_indikator ORDER BY kategori, id_i
             </div>
         </div>
 
-        <!-- Komunikasi Card -->
         <div class="col-lg-6">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100">
                 <div class="card-header bg-white border-0 py-3 px-4 d-flex align-items-center">
@@ -117,7 +117,6 @@ $indicators = $pdo->query("SELECT * FROM tabel_indikator ORDER BY kategori, id_i
     </div>
 </div>
 
-<!-- Add Modal -->
 <div class="modal fade" id="addModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 1.5rem;">

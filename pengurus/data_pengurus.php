@@ -2,13 +2,13 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'Sekjend', 'PPI']);
+check_permission('pengurus.view');
 
-// Handle Delete (Global delete from system)
+
 if (isset($_GET['delete'])) {
+    check_permission('pengurus.delete');
     $nokta = $_GET['delete'];
-    
-    // SECURITY CHECK: Fetch target user's role before deleting
+
     $stmtCheck = $pdo->prepare("SELECT r.nama_role FROM tabel_pengurus_jabatan j JOIN tabel_role r ON j.role_id = r.id_role WHERE j.nokta = ? LIMIT 1");
     $stmtCheck->execute([$nokta]);
     $target_role = $stmtCheck->fetchColumn();
@@ -31,14 +31,12 @@ $title = "Data Pengurus";
 include '../layout/header.php';
 include '../layout/sidebar.php';
 
-// Fetch all Periods for filter
 $all_periods = $pdo->query("SELECT * FROM tabel_kepengurusan ORDER BY nama_periode DESC")->fetchAll();
 $active_p = get_active_kepengurusan();
 
 $filter_period = $_GET['period'] ?? ($active_p['id_kepengurusan'] ?? '');
 $filter_angkatan = $_GET['angkatan'] ?? '';
 
-// Fetch unique Angkatan for filter
 $angkatans = $pdo->query("SELECT DISTINCT angkatan FROM tabel_pengurus WHERE angkatan IS NOT NULL ORDER BY angkatan DESC")->fetchAll(PDO::FETCH_COLUMN);
 
 $message = '';
@@ -53,7 +51,6 @@ if (isset($_SESSION['error'])) {
     unset($_SESSION['error']);
 }
 
-// Fetch Pengurus with filters
 $params = [];
 $query = "SELECT p.*, r.nama_role, b.nama_biro, d.nama_divisi, j.jabatan as jabatan_aktif
           FROM tabel_pengurus p 
@@ -80,12 +77,13 @@ $pengurus = $stmt->fetchAll();
         <div>
             <h4 class="fw-800 text-brand-red mb-1">Manajemen Pengurus</h4>
         </div>
+        <?php if (has_permission('pengurus.create')): ?>
         <a href="tambah_pengurus.php" class="btn btn-primary d-flex align-items-center shadow-sm">
             <i class="fas fa-plus-circle me-2"></i> Tambah Pengurus Baru
         </a>
+        <?php endif; ?>
     </div>
 
-    <!-- Filters Modern Card -->
     <div class="card border-0 shadow-sm mb-4 overflow-hidden">
         <div class="card-body p-4 bg-light-soft">
             <form method="GET" class="row g-3 align-items-end">
@@ -212,15 +210,20 @@ $pengurus = $stmt->fetchAll();
                                     $can_edit = !($_SESSION['user']['nama_role'] == 'Sekjend' && $p['nama_role'] == 'Super Admin');
                                     if ($can_edit): 
                                     ?>
-                                    <a href="edit_pengurus.php?nokta=<?= $p['nokta'] ?>&context_period=<?= $filter_period ?>" 
-                                       class="btn btn-icon btn-light-soft text-primary" title="Edit Data">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <button class="btn btn-icon btn-light-soft text-danger" 
-                                            onclick="if(confirm('Yakin ingin menghapus pengurus ini dari sistem secara permanen?')) window.location.href='data_pengurus.php?delete=<?= $p['nokta'] ?>'" 
-                                            title="Hapus Permanen">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
+                                        <?php if (has_permission('pengurus.update')): ?>
+                                        <a href="edit_pengurus.php?nokta=<?= $p['nokta'] ?>&context_period=<?= $filter_period ?>" 
+                                           class="btn btn-icon btn-light-soft text-primary" title="Edit Data">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <?php endif; ?>
+                                        
+                                        <?php if (has_permission('pengurus.delete')): ?>
+                                        <button class="btn btn-icon btn-light-soft text-danger" 
+                                                onclick="if(confirm('Yakin ingin menghapus pengurus ini dari sistem secara permanen?')) window.location.href='data_pengurus.php?delete=<?= $p['nokta'] ?>'" 
+                                                title="Hapus Permanen">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <span class="badge bg-light text-muted opacity-50"><i class="fas fa-lock me-1"></i> Terkunci</span>
                                     <?php endif; ?>

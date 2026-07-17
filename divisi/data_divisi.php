@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role('Super Admin');
+check_permission('divisi.view');
+
 
 $title = "Kelola Divisi";
 include '../layout/header.php';
@@ -17,6 +18,7 @@ if (!$active_p) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add'])) {
+        check_permission('divisi.create');
         $nama_divisi = $_POST['nama_divisi'];
         $biro_id = $_POST['biro_id'];
         $stmt = $pdo->prepare("INSERT INTO tabel_divisi (nama_divisi, biro_id, kepengurusan_id) VALUES (?, ?, ?)");
@@ -24,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "Divisi berhasil ditambahkan ke periode " . $active_p['nama_periode'];
         }
     } elseif (isset($_POST['edit'])) {
+        check_permission('divisi.update');
         $id_divisi = $_POST['id_divisi'];
         $nama_divisi = $_POST['nama_divisi'];
         $biro_id = $_POST['biro_id'];
@@ -32,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "Divisi berhasil diperbarui!";
         }
     } elseif (isset($_POST['delete'])) {
+        check_permission('divisi.delete');
         $id_divisi = $_POST['id_divisi'];
         $stmt = $pdo->prepare("DELETE FROM tabel_divisi WHERE id_divisi = ?");
         if ($stmt->execute([$id_divisi])) {
@@ -59,9 +63,11 @@ $biros = $stmtBiro->fetchAll();
             <h4 class="fw-800 text-brand-red mb-1">Manajemen Divisi</h4>
             <p class="text-muted small">Hubungkan unit teknis divisi ke biro dalam periode <span class="badge bg-primary px-2 rounded-pill"><?= $active_p['nama_periode'] ?></span>.</p>
         </div>
+        <?php if (has_permission('divisi.create')): ?>
         <button class="btn btn-primary d-flex align-items-center shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#addModal">
             <i class="fas fa-plus-circle me-2"></i> Tambah Divisi Baru
         </button>
+        <?php endif; ?>
     </div>
 
     <?php if ($message): ?>
@@ -103,71 +109,21 @@ $biros = $stmtBiro->fetchAll();
                             </td>
                             <td class="text-center pe-4">
                                 <div class="d-flex justify-content-center gap-1">
+                                    <?php if (has_permission('divisi.update')): ?>
                                     <button class="btn btn-icon btn-light-soft text-primary" 
-                                            data-bs-toggle="modal" data-bs-target="#editModal<?= $d['id_divisi'] ?>" title="Ubah Data">
+                                             data-bs-toggle="modal" data-bs-target="#editModal<?= $d['id_divisi'] ?>" title="Ubah Data">
                                         <i class="fas fa-edit"></i>
                                     </button>
+                                    <?php endif; ?>
+                                    <?php if (has_permission('divisi.delete')): ?>
                                     <button class="btn btn-icon btn-light-soft text-danger" 
-                                            data-bs-toggle="modal" data-bs-target="#deleteModal<?= $d['id_divisi'] ?>" title="Hapus">
+                                             data-bs-toggle="modal" data-bs-target="#deleteModal<?= $d['id_divisi'] ?>" title="Hapus">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
-
-                        <div class="modal fade" id="editModal<?= $d['id_divisi'] ?>" tabindex="-1">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content border-0 shadow-lg" style="border-radius: 1.25rem;">
-                                    <form method="POST">
-                                        <div class="modal-header border-0 p-4 pb-0">
-                                            <h5 class="modal-title fw-800 text-dark">Ubah Divisi</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body p-4">
-                                            <input type="hidden" name="id_divisi" value="<?= $d['id_divisi'] ?>">
-                                            <div class="mb-3">
-                                                <label class="form-label small fw-800 text-muted ls-1 text-uppercase">Nama Divisi</label>
-                                                <input type="text" name="nama_divisi" class="form-control form-control-lg bg-light border-0" value="<?= $d['nama_divisi'] ?>" required>
-                                            </div>
-                                            <div class="mb-0">
-                                                <label class="form-label small fw-800 text-muted ls-1 text-uppercase">Pilih Biro</label>
-                                                <select name="biro_id" class="form-select bg-light border-0" required>
-                                                    <?php foreach($biros as $b): ?>
-                                                    <option value="<?= $b['id_biro'] ?>" <?= ($b['id_biro'] == $d['biro_id']) ? 'selected' : '' ?>><?= $b['nama_biro'] ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer border-0 p-4 pt-0">
-                                            <button type="button" class="btn btn-light px-4 fw-600" data-bs-dismiss="modal">Batal</button>
-                                            <button type="submit" name="edit" class="btn btn-primary px-4 fw-800 shadow-sm">Simpan Perubahan</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="modal fade" id="deleteModal<?= $d['id_divisi'] ?>" tabindex="-1">
-                            <div class="modal-dialog modal-sm modal-dialog-centered">
-                                <div class="modal-content border-0 shadow-lg" style="border-radius: 1.25rem;">
-                                    <form method="POST">
-                                        <div class="modal-body p-4 text-center">
-                                            <div class="stats-icon bg-danger-soft text-danger mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 20px; font-size: 1.5rem;">
-                                                <i class="fas fa-exclamation-triangle"></i>
-                                            </div>
-                                            <h5 class="fw-800 text-dark mb-2">Hapus Divisi?</h5>
-                                            <p class="text-muted small mb-0 text-center">Tindakan ini tidak dapat dibatalkan.</p>
-                                            <input type="hidden" name="id_divisi" value="<?= $d['id_divisi'] ?>">
-                                        </div>
-                                        <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
-                                            <button type="button" class="btn btn-light flex-fill fw-600" data-bs-dismiss="modal">Batal</button>
-                                            <button type="submit" name="delete" class="btn btn-danger flex-fill fw-800 shadow-sm">Ya, Hapus</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
                         <?php endforeach; else: ?>
                         <tr>
                             <td colspan="4" class="text-center py-5">
@@ -216,6 +172,65 @@ $biros = $stmtBiro->fetchAll();
         </div>
     </div>
 </div>
+
+<!-- Edit & Delete Modals Definitions -->
+<?php if ($divisis): foreach($divisis as $d): ?>
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal<?= $d['id_divisi'] ?>" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 1.25rem;">
+            <form method="POST">
+                <div class="modal-header border-0 p-4 pb-0">
+                    <h5 class="modal-title fw-800 text-dark">Ubah Divisi</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <input type="hidden" name="id_divisi" value="<?= $d['id_divisi'] ?>">
+                    <div class="mb-3">
+                        <label class="form-label small fw-800 text-muted ls-1 text-uppercase">Nama Divisi</label>
+                        <input type="text" name="nama_divisi" class="form-control form-control-lg bg-light border-0" value="<?= $d['nama_divisi'] ?>" required>
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label small fw-800 text-muted ls-1 text-uppercase">Pilih Biro</label>
+                        <select name="biro_id" class="form-select bg-light border-0" required>
+                            <?php foreach($biros as $b): ?>
+                            <option value="<?= $b['id_biro'] ?>" <?= ($b['id_biro'] == $d['biro_id']) ? 'selected' : '' ?>><?= $b['nama_biro'] ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="button" class="btn btn-light px-4 fw-600" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" name="edit" class="btn btn-primary px-4 fw-800 shadow-sm">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal<?= $d['id_divisi'] ?>" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 1.25rem;">
+            <form method="POST">
+                <div class="modal-body p-4 text-center">
+                    <div class="stats-icon bg-danger-soft text-danger mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 20px; font-size: 1.5rem;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h5 class="fw-800 text-dark mb-2">Hapus Divisi?</h5>
+                    <p class="text-muted small mb-0 text-center">Tindakan ini tidak dapat dibatalkan.</p>
+                    <input type="hidden" name="id_divisi" value="<?= $d['id_divisi'] ?>">
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
+                    <button type="button" class="btn btn-light flex-fill fw-600" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" name="delete" class="btn btn-danger flex-fill fw-800 shadow-sm">Ya, Hapus</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endforeach; endif; ?>
+
 
 <style>
 .bg-slate-50 { background-color: #f8fafc; }

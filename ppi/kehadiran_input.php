@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'PPI', 'Sekjend']);
+check_permission('kehadiran.create');
+
 
 $id_kegiatan = $_GET['id'] ?? null;
 if (!$id_kegiatan) {
@@ -36,7 +37,6 @@ $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $statuses = $_POST['status']; // Array: nokta => status
     foreach ($statuses as $nokta => $status) {
-        // Check if exists
         $stmtCheck = $pdo->prepare("SELECT id FROM tabel_kehadiran WHERE kegiatan_id = ? AND nokta_pengurus = ?");
         $stmtCheck->execute([$id_kegiatan, $nokta]);
         $exists = $stmtCheck->fetch();
@@ -49,13 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtInsert->execute([$id_kegiatan, $nokta, $status]);
         }
 
-        // AUTOMATION: Update KPI for this member
         update_kpi_member($nokta, $kegiatan['bulan'], $kegiatan['tahun'], $kegiatan['kepengurusan_id']);
     }
     $message = "Kehadiran berhasil disimpan!";
 }
 
-// Fetch all members. Everyone usually attends activities.
 $stmtMembers = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, k.status_hadir 
                             FROM tabel_pengurus p 
                             JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?

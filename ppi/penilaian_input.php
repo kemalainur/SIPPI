@@ -3,13 +3,11 @@ require_once '../config/database.php';
 session_start();
 check_login();
 
-// Fetch ACTIVE Grand Period
 $active_p = get_active_kepengurusan();
 if (!$active_p) {
     die("Error: Tidak ada Tahun Kepengurusan yang aktif.");
 }
 
-// Fetch Active Month
 $stmtAktif = $pdo->prepare("SELECT * FROM tabel_periode WHERE status = 'aktif' AND kepengurusan_id = ? LIMIT 1");
 $stmtAktif->execute([$active_p['id_kepengurusan']]);
 $active = $stmtAktif->fetch();
@@ -27,21 +25,70 @@ $bulan = $active['bulan'];
 $tahun = $active['tahun'];
 $me = $_SESSION['user']['nokta'];
 
-// Fetch all CURRENT members to be rated (excluding Super Admin and myself)
-// NEW: Filter out members already rated by the current user in this month
-$stmtToRate = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role 
-                             FROM tabel_pengurus p 
-                             JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
-                             JOIN tabel_role r ON j.role_id = r.id_role
-                             LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
-                             WHERE r.nama_role != 'Super Admin' 
-                             AND p.nokta != ?
-                             AND tp.id_penilaian IS NULL
-                             ORDER BY p.nama ASC");
-$stmtToRate->execute([$active_p['id_kepengurusan'], $me, $bulan, $tahun, $me]);
-$members = $stmtToRate->fetchAll();
+// Check if user is a penilai
+$stmtCheckPenilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
+                                   WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND tipe = 'penilai'");
+$stmtCheckPenilai->execute([$active_p['id_kepengurusan'], $bulan, $tahun]);
+$has_penilai_config = ($stmtCheckPenilai->fetchColumn() > 0);
 
-// Fetch Indicators
+$is_allowed_to_assess = true;
+if ($has_penilai_config) {
+    $stmtIsPenilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
+                                     WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND nokta = ? AND tipe = 'penilai'");
+    $stmtIsPenilai->execute([$active_p['id_kepengurusan'], $bulan, $tahun, $me]);
+    $is_allowed_to_assess = ($stmtIsPenilai->fetchColumn() > 0);
+}
+
+if (!$is_allowed_to_assess) {
+    $title = "Akses Penilaian Dibatasi";
+    include '../layout/header.php';
+    include '../layout/sidebar.php';
+    echo '<div id="content" class="text-center mt-5">
+            <i class="fas fa-user-slash fa-4x text-muted mb-3"></i>
+            <h4>Akses Penilaian Dinonaktifkan</h4>
+            <p class="text-muted small">Anda tidak diatur sebagai penilai pada periode penilaian bulan ini (' . $bulan . '/' . $tahun . ').</p>
+            <p class="text-muted small">Silakan hubungi PPI jika menurut Anda ini adalah kesalahan.</p>
+            <a href="' . base_url('dashboard/dashboard.php') . '" class="btn btn-primary rounded-pill px-4 mt-3">Kembali ke Dashboard</a>
+          </div>';
+    include '../layout/footer.php';
+    exit;
+}
+
+function get_members_to_rate($pdo, $active_p_id, $me, $bulan, $tahun) {
+    $stmtCheckDinilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
+                                       WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND tipe = 'dinilai'");
+    $stmtCheckDinilai->execute([$active_p_id, $bulan, $tahun]);
+    $has_dinilai_config = ($stmtCheckDinilai->fetchColumn() > 0);
+
+    if ($has_dinilai_config) {
+        $stmt = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role 
+                               FROM tabel_pengurus p 
+                               JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                               JOIN tabel_role r ON j.role_id = r.id_role
+                               JOIN tabel_konfigurasi_penilaian kp ON p.nokta = kp.nokta AND kp.kepengurusan_id = ? AND kp.bulan = ? AND kp.tahun = ? AND kp.tipe = 'dinilai'
+                               LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
+                               WHERE r.nama_role != 'Super Admin' 
+                               AND p.nokta != ?
+                               AND tp.id_penilaian IS NULL
+                               ORDER BY p.nama ASC");
+        $stmt->execute([$active_p_id, $active_p_id, $bulan, $tahun, $me, $bulan, $tahun, $me]);
+    } else {
+        $stmt = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role 
+                               FROM tabel_pengurus p 
+                               JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                               JOIN tabel_role r ON j.role_id = r.id_role
+                               LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
+                               WHERE r.nama_role != 'Super Admin' 
+                               AND p.nokta != ?
+                               AND tp.id_penilaian IS NULL
+                               ORDER BY p.nama ASC");
+        $stmt->execute([$active_p_id, $me, $bulan, $tahun, $me]);
+    }
+    return $stmt->fetchAll();
+}
+
+$members = get_members_to_rate($pdo, $active_p['id_kepengurusan'], $me, $bulan, $tahun);
+
 $indicators = $pdo->query("SELECT * FROM tabel_indikator ORDER BY kategori, id_indikator ASC")->fetchAll();
 
 $title = "Beri Penilaian";
@@ -61,14 +108,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$me, $dinilai_nokta, $indId, $score, $bulan, $tahun, $score]);
     }
     
-    // AUTOMATION: Trigger KPI Update for the rated member
     update_kpi_member($dinilai_nokta, $bulan, $tahun, $active_p['id_kepengurusan']);
 
     $message = "Penilaian untuk " . $_POST['nama_dinilai'] . " berhasil disimpan!";
     
-    // Refresh member list after rating
-    $stmtToRate->execute([$active_p['id_kepengurusan'], $me, $bulan, $tahun, $me]);
-    $members = $stmtToRate->fetchAll();
+    $members = get_members_to_rate($pdo, $active_p['id_kepengurusan'], $me, $bulan, $tahun);
 }
 ?>
 
@@ -96,7 +140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
 
     <div class="row g-4">
-        <!-- List Members to Rate -->
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100">
                 <div class="card-header bg-white border-0 py-3 px-4 d-flex align-items-center text-dark">
@@ -129,7 +172,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
-        <!-- Rating Form Area -->
         <div class="col-lg-8">
             <?php if (!$members): ?>
                 <div class="card border-0 shadow-sm rounded-4 h-100 d-flex align-items-center justify-content-center text-center p-5 bg-white">
@@ -213,17 +255,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
 function selectMember(el, nokta, nama, jabatan) {
-    // UI Effects
     document.querySelectorAll('.member-btn').forEach(btn => btn.classList.remove('active', 'bg-brand-red-soft', 'border-brand-red'));
     el.classList.add('active', 'bg-brand-red-soft', 'border-brand-red');
     
-    // Switch Visibility
     document.getElementById('selectPlaceholder').classList.add('d-none');
     const ratingCard = document.getElementById('ratingFormArea');
     ratingCard.classList.remove('d-none');
     ratingCard.classList.add('fade-in');
     
-    // Set Data
     document.getElementById('targetNokta').value = nokta;
     document.getElementById('targetName').innerText = nama;
     document.getElementById('targetNameInput').value = nama;
@@ -231,11 +270,9 @@ function selectMember(el, nokta, nama, jabatan) {
     document.getElementById('targetJabatanInput').value = jabatan;
     document.getElementById('targetAvatar').innerText = nama.charAt(0).toUpperCase();
     
-    // Reset radio buttons
     const radios = ratingCard.querySelectorAll('input[type="radio"]');
     radios.forEach(r => r.checked = false);
     
-    // Scroll to form (mobile)
     if(window.innerWidth < 992) {
         ratingCard.scrollIntoView({ behavior: 'smooth' });
     } else {

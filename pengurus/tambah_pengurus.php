@@ -2,19 +2,17 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'Sekjend', 'PPI']);
+check_permission('pengurus.create');
 
 $title = "Tambah Pengurus";
 $error = '';
 $success = '';
 
-// Fetch ACTIVE period
 $active_p = get_active_kepengurusan();
 if (!$active_p) {
     die("Error: Tidak ada Tahun Kepengurusan yang aktif. Silakan hubungi Super Admin.");
 }
 
-// Fetch related data FILTERED by active period
 $biros = $pdo->prepare("SELECT * FROM tabel_biro WHERE kepengurusan_id = ? ORDER BY nama_biro ASC");
 $biros->execute([$active_p['id_kepengurusan']]);
 $biros = $biros->fetchAll();
@@ -23,7 +21,8 @@ $divisis = $pdo->prepare("SELECT * FROM tabel_divisi WHERE kepengurusan_id = ? O
 $divisis->execute([$active_p['id_kepengurusan']]);
 $divisis = $divisis->fetchAll();
 
-$roles = $pdo->query("SELECT * FROM tabel_role ORDER BY id_role ASC")->fetchAll();
+$roles = $pdo->query("SELECT MIN(id_role) AS id_role, nama_role FROM tabel_role GROUP BY nama_role ORDER BY id_role ASC")->fetchAll();
+
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nokta = $_POST['nokta'];
@@ -36,7 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $role_id = $_POST['role_id'];
     $password = $_POST['password'];
 
-    // SECURITY CHECK: Sekjend cannot create Super Admin
     $stmtRoleCheck = $pdo->prepare("SELECT nama_role FROM tabel_role WHERE id_role = ?");
     $stmtRoleCheck->execute([$role_id]);
     $new_role_name = $stmtRoleCheck->fetchColumn();
@@ -47,7 +45,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // 1. Save Static Info (ignore if exists, but we usually check)
             $stmtStatic = $pdo->prepare("INSERT INTO tabel_pengurus (nokta, nama, angkatan, no_hp, password) 
                                          VALUES (?, ?, ?, ?, ?) 
                                          ON DUPLICATE KEY UPDATE nama=?, angkatan=?, no_hp=?, password=?");

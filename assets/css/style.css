@@ -48,6 +48,9 @@ body {
     margin-left: 0;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
+    scrollbar-width: auto; /* Modern standard */
+    scrollbar-color: #64748B #1E293B; /* thumb track */
 }
 
 #sidebar.toggled {
@@ -279,11 +282,32 @@ body {
     background: #94a3b8;
 }
 
+/* Custom Scrollbar for Sidebar */
+#sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+#sidebar::-webkit-scrollbar-track {
+    background: #1E293B; /* Slate 800 - Track path */
+}
+#sidebar::-webkit-scrollbar-thumb {
+    background: #64748B; /* Slate 500 - Highly visible thumb */
+    border-radius: 10px;
+}
+#sidebar::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8; /* Slate 400 */
+}
+
+
 @media (max-width: 991.98px) {
     #sidebar {
         position: fixed;
         margin-left: -280px;
-        height: 100%;
+        height: 100vh;
+        z-index: 2100; /* Sits above mobile header */
+    }
+    
+    #sidebar-overlay {
+        z-index: 2090; /* Above mobile header, below sidebar */
     }
     
     #sidebar.active {

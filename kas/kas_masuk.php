@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'Bendum', 'PPI']);
+check_permission('kas.create');
+
 
 $title = "Input Kas Masuk";
 include '../layout/header.php';

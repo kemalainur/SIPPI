@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'Sekjend', 'PPI']);
+check_permission('pengurus.update');
+
 
 $title = "Ubah Pengurus";
 $error = '';
@@ -21,7 +22,6 @@ if (!$context_period_id) {
     $context_period_id = $active_p['id_kepengurusan'] ?? '';
 }
 
-// Fetch Static Data + Context Position + Role Name
 $stmt = $pdo->prepare("SELECT p.*, j.biro_id, j.divisi_id, j.role_id, j.jabatan, r.nama_role 
                         FROM tabel_pengurus p 
                         LEFT JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
@@ -42,7 +42,6 @@ if ($_SESSION['user']['nama_role'] == 'Sekjend' && $p['nama_role'] == 'Super Adm
     exit;
 }
 
-// Fetch related data FILTERED by context period
 $biros = $pdo->prepare("SELECT * FROM tabel_biro WHERE kepengurusan_id = ? ORDER BY nama_biro ASC");
 $biros->execute([$context_period_id]);
 $biros = $biros->fetchAll();
@@ -51,7 +50,7 @@ $divisis = $pdo->prepare("SELECT * FROM tabel_divisi WHERE kepengurusan_id = ? O
 $divisis->execute([$context_period_id]);
 $divisis = $divisis->fetchAll();
 
-$roles = $pdo->query("SELECT * FROM tabel_role ORDER BY id_role ASC")->fetchAll();
+$roles = $pdo->query("SELECT MIN(id_role) AS id_role, nama_role FROM tabel_role GROUP BY nama_role ORDER BY id_role ASC")->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nama = $_POST['nama'];
@@ -75,8 +74,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtStatic->execute([$nama, $angkatan, $no_hp, $nokta]);
         }
 
-        // 2. Update Position for the context period
-        // SECURITY CHECK: Sekjend cannot promote anyone to Super Admin
         $stmtRoleCheck = $pdo->prepare("SELECT nama_role FROM tabel_role WHERE id_role = ?");
         $stmtRoleCheck->execute([$role_id]);
         $new_role_name = $stmtRoleCheck->fetchColumn();

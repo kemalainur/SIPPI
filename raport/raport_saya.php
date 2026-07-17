@@ -17,17 +17,14 @@ $title = ($view_nokta == $nokta) ? "Grafik & Raport Saya" : "Raport: $member_nam
 include '../layout/header.php';
 include '../layout/sidebar.php';
 
-// Fetch all members for selection (only for Admin/PPI)
 $all_members = [];
 if ($is_admin) {
     $all_members = $pdo->query("SELECT nokta, nama FROM tabel_pengurus ORDER BY nama ASC")->fetchAll();
 }
 
-// Fetch ACTIVE grand period
 $active_p = get_active_kepengurusan();
 $active_id = $active_p['id_kepengurusan'] ?? 0;
 
-// Fetch KPI History for Chart - Filtered by active period context
 $stmtHistory = $pdo->prepare("SELECT bulan, tahun, nilai_attitude, nilai_komunikasi, nilai_disiplin, nilai_kpi_total 
                              FROM tabel_nilai_kpi 
                              WHERE nokta = ? AND kepengurusan_id = ?
@@ -35,7 +32,6 @@ $stmtHistory = $pdo->prepare("SELECT bulan, tahun, nilai_attitude, nilai_komunik
 $stmtHistory->execute([$view_nokta, $active_id]);
 $history = $stmtHistory->fetchAll();
 
-// Determine which month to show details for (Default to latest)
 $view_bulan = isset($_GET['bulan']) ? (int)$_GET['bulan'] : null;
 $view_tahun = isset($_GET['tahun']) ? (int)$_GET['tahun'] : null;
 
@@ -49,7 +45,6 @@ if (!empty($history)) {
             }
         }
     }
-    // Fallback to latest if not found or not specified
     if (!$latest) $latest = $history[count($history)-1];
 }
 
@@ -67,13 +62,11 @@ foreach($history as $h) {
     $dataTotal[] = (float)$h['nilai_kpi_total'];
 }
 
-// Fetch Details for Latest Month for Transparency
 $detailAttendance = [];
 $detailKas = null;
 $detailIndicators = [];
 
 if ($latest) {
-    // 1. Attendance Details
     $stmtAtt = $pdo->prepare("SELECT k.nama_kegiatan, h.status_hadir 
                              FROM tabel_kehadiran h 
                              JOIN tabel_kegiatan k ON h.kegiatan_id = k.id_kegiatan 
@@ -81,12 +74,10 @@ if ($latest) {
     $stmtAtt->execute([$view_nokta, $latest['bulan'], $latest['tahun']]);
     $detailAttendance = $stmtAtt->fetchAll();
 
-    // 2. Kas Details
     $stmtK = $pdo->prepare("SELECT * FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
     $stmtK->execute([$view_nokta, $latest['bulan'], $latest['tahun']]);
     $detailKas = $stmtK->fetch();
 
-    // 3. Indicator Details (Peer Assessment Breakdown)
     $stmtInd = $pdo->prepare("SELECT i.nama_indikator, i.kategori, AVG(tp.skor) as avg_score 
                              FROM tabel_penilaian tp 
                              JOIN tabel_indikator i ON tp.indikator_id = i.id_indikator 
@@ -187,7 +178,6 @@ if ($latest) {
                 </div>
             </div>
 
-            <!-- Graphs -->
             <div class="col-lg-12">
                 <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
                     <div class="card-header bg-white border-0 py-4 px-4">
@@ -201,7 +191,6 @@ if ($latest) {
                 </div>
             </div>
 
-            <!-- History Table -->
             <div class="col-lg-12 mb-5">
                 <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
                     <div class="card-header bg-white border-0 py-4 px-4">
@@ -257,7 +246,6 @@ if ($latest) {
     document.addEventListener("DOMContentLoaded", function() {
         const ctx = document.getElementById('performaChart').getContext('2d');
         
-        // Create gradients
         const gradTotal = ctx.createLinearGradient(0, 0, 0, 300);
         gradTotal.addColorStop(0, 'rgba(220, 38, 38, 0.2)');
         gradTotal.addColorStop(1, 'rgba(220, 38, 38, 0)');
@@ -349,7 +337,6 @@ if ($latest) {
 .fw-600 { font-weight: 600; }
 .ls-1 { letter-spacing: 0.5px; }
 
-/* Premium Global Animations */
 @keyframes modalSlideUp {
     from { transform: translateY(20px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
@@ -359,7 +346,6 @@ if ($latest) {
     animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Glassmorphism Modals */
 .glass-modal {
     background: rgba(255, 255, 255, 0.85) !important;
     backdrop-filter: blur(16px) saturate(180%);
@@ -367,7 +353,6 @@ if ($latest) {
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
 }
 
-/* Mobile Friendly Attendance Cards */
 .att-card {
     background: white;
     border: 1px solid #f1f5f9;
@@ -378,7 +363,6 @@ if ($latest) {
 
 .att-card:hover { border-color: #e2e8f0; transform: scale(1.01); }
 
-/* Score Indicators */
 .score-badge {
     width: 44px;
     height: 44px;
@@ -401,7 +385,6 @@ if ($latest) {
 </style>
 
 <?php if($latest): ?>
-<!-- Premium Modal Disiplin -->
 <div class="modal fade" id="modalDisiplin" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content glass-modal border-0 shadow-lg rounded-4 overflow-hidden">
@@ -483,7 +466,6 @@ if ($latest) {
     </div>
 </div>
 
-<!-- Premium Modal Performance -->
 <div class="modal fade" id="modalPerformance" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-md">
         <div class="modal-content glass-modal border-0 shadow-lg rounded-4 overflow-hidden">
@@ -537,7 +519,6 @@ if ($latest) {
     </div>
 </div>
 
-<!-- Premium Modal Bobot -->
 <div class="modal fade" id="modalBobot" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content glass-modal border-0 shadow-lg rounded-4 overflow-hidden">

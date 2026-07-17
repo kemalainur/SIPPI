@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'PPI']);
+check_permission('ppi.manage');
+
 
 $title = "Kelola Tahun Kepengurusan";
 include '../layout/header.php';
@@ -19,13 +20,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // 1. Create the new period as 'arsip' first
             $stmt = $pdo->prepare("INSERT INTO tabel_kepengurusan (nama_periode, status) VALUES (?, 'arsip')");
             $stmt->execute([$nama]);
             $new_id = $pdo->lastInsertId();
 
             if ($copy_from) {
-                // 2. Copy Biros
                 $stmtBiro = $pdo->prepare("SELECT id_biro, nama_biro FROM tabel_biro WHERE kepengurusan_id = ?");
                 $stmtBiro->execute([$copy_from]);
                 $old_biros = $stmtBiro->fetchAll();
@@ -35,7 +34,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmtInsBiro->execute([$ob['nama_biro'], $new_id]);
                     $new_biro_id = $pdo->lastInsertId();
 
-                    // 3. Copy Divisions for this Biro
                     $stmtDiv = $pdo->prepare("SELECT nama_divisi FROM tabel_divisi WHERE biro_id = ?");
                     $stmtDiv->execute([$ob['id_biro']]);
                     $old_divs = $stmtDiv->fetchAll();
@@ -46,9 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // 4. Auto-Copy Pengurus (Only specific Angkatan as per user request)
                 if ($copy_year) {
-                    // We need to map old biro/div names to new IDs since IDs changed
                     $stmtMapBiro = $pdo->prepare("SELECT b1.id_biro as old_id, b2.id_biro as new_id 
                                                  FROM tabel_biro b1 
                                                  JOIN tabel_biro b2 ON b1.nama_biro = b2.nama_biro 
@@ -56,7 +52,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmtMapBiro->execute([$copy_from, $new_id]);
                     $biro_map = $stmtMapBiro->fetchAll(PDO::FETCH_KEY_PAIR);
 
-                    // Fetch pengurus from latest angkatan in the source period
                     $stmtOldP = $pdo->prepare("SELECT j.* FROM tabel_pengurus_jabatan j 
                                                JOIN tabel_pengurus p ON j.nokta = p.nokta 
                                                WHERE j.kepengurusan_id = ? AND p.angkatan = ?");
@@ -65,7 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     foreach ($to_copy as $tc) {
                         $new_b = $biro_map[$tc['biro_id']] ?? null;
-                        // Find new div id by name
                         $new_d = null;
                         if ($tc['divisi_id']) {
                             $stmtOldDivName = $pdo->prepare("SELECT nama_divisi FROM tabel_divisi WHERE id_divisi = ?");
@@ -128,7 +122,6 @@ $angkatans = $pdo->query("SELECT DISTINCT angkatan FROM tabel_pengurus ORDER BY 
     <?php endif; ?>
 
     <div class="row g-4">
-        <!-- Panel Tambah Tahun -->
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
                 <div class="card-header bg-white border-0 py-4 px-4 border-bottom border-light">
@@ -172,7 +165,6 @@ $angkatans = $pdo->query("SELECT DISTINCT angkatan FROM tabel_pengurus ORDER BY 
             </div>
         </div>
 
-        <!-- Panel Daftar Tahun -->
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100">
                 <div class="card-header bg-white border-0 py-4 px-4 d-flex justify-content-between align-items-center">

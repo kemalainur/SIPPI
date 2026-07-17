@@ -2,27 +2,24 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'Bendum', 'PPI']);
+check_permission('kas.update');
 
-// Handle Update Status
+
 if (isset($_GET['toggle'])) {
     $nokta = $_GET['toggle'];
     $status = $_GET['status'];
     $bulan_url = (int)($_GET['bulan'] ?? date('m'));
     $tahun_url = $_GET['tahun'] ?? date('Y');
     
-    // Fetch ACTIVE period again if not yet fetched (or fetch earlier)
     $active_p = get_active_kepengurusan();
     if (!$active_p) {
         die("Error: Tidak ada Tahun Kepengurusan yang aktif.");
     }
 
-    // Get nominal from period settings
     $stmtNom = $pdo->prepare("SELECT nominal FROM tabel_kas_periode_wajib WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
     $stmtNom->execute([$bulan_url, $tahun_url, $active_p['id_kepengurusan']]);
     $nominal = $stmtNom->fetchColumn() ?: 0;
 
-    // Check if record exists
     $stmtCheck = $pdo->prepare("SELECT id FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
     $stmtCheck->execute([$nokta, $bulan_url, $tahun_url]);
     $exists = $stmtCheck->fetch();
@@ -37,7 +34,6 @@ if (isset($_GET['toggle'])) {
         $stmtInsert->execute([$nokta, $bulan_url, $tahun_url, $status, $tgl, $nominal]);
     }
 
-    // AUTOMATION: Update KPI for this member
     update_kpi_member($nokta, $bulan_url, $tahun_url, $active_p['id_kepengurusan']);
 
     header("Location: status_kas_pengurus.php?bulan=$bulan_url&tahun=$tahun_url");
@@ -57,7 +53,6 @@ if (!$active_p) {
     die("Error: Tidak ada Tahun Kepengurusan yang aktif.");
 }
 
-// Fetch members for active period
 $query = "SELECT p.nokta, p.nama, j.jabatan, k.status_bayar, k.tanggal_bayar, k.nominal
           FROM tabel_pengurus p 
           JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
@@ -68,7 +63,6 @@ $stmt = $pdo->prepare($query);
 $stmt->execute([$active_p['id_kepengurusan'], $bulan, $tahun]);
 $members = $stmt->fetchAll();
 
-// Fetch defined mandatory periods for the filter
 $stmtMand = $pdo->prepare("SELECT bulan, tahun FROM tabel_kas_periode_wajib WHERE kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC");
 $stmtMand->execute([$active_p['id_kepengurusan']]);
 $mandatories = $stmtMand->fetchAll();
@@ -115,7 +109,6 @@ if ($mand_data) {
         </div>
     </div>
 
-    <!-- Stats Summary Ribbon -->
     <div class="row g-3 mb-4">
         <div class="col-md-4">
             <div class="card border-0 shadow-sm rounded-4 bg-white">

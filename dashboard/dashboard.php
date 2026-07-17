@@ -1,27 +1,19 @@
 <?php
 require_once '../config/database.php';
 session_start();
-check_login();
+check_permission('dashboard.view');
 
-$title = "Dashboard Utama";
-include '../layout/header.php';
-include '../layout/sidebar.php';
-
-// Fetch ACTIVE grand period
 $active_p = get_active_kepengurusan();
 $active_id = $active_p['id_kepengurusan'] ?? 0;
 
-// Determine Dashboard View Mode
 $role_name = $_SESSION['user']['nama_role'];
 $is_admin_view = in_array($role_name, ['Super Admin', 'Sekjend', 'Bendum', 'PPI', 'Kabiro', 'Koorkam']);
 $my_nokta = $_SESSION['user']['nokta'];
 
-// Fetch Active Month (Penilaian)
 $stmtPeriode = $pdo->prepare("SELECT * FROM tabel_periode WHERE status = 'aktif' AND kepengurusan_id = ? LIMIT 1");
 $stmtPeriode->execute([$active_id]);
 $periodeAktif = $stmtPeriode->fetch();
 
-// 1. Manager Stats (If Admin)
 if ($is_admin_view) {
     try {
         $stmtPengurus = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan j 
@@ -34,26 +26,29 @@ if ($is_admin_view) {
         $stmtBiro->execute([$active_id]);
         $totalBiro = $stmtBiro->fetchColumn();
 
+        $stmtDivisi = $pdo->prepare("SELECT COUNT(*) FROM tabel_divisi WHERE kepengurusan_id = ?");
+        $stmtDivisi->execute([$active_id]);
+        $totalDivisi = $stmtDivisi->fetchColumn();
+
         $stmtAvg = $pdo->prepare("SELECT AVG(nilai_kpi_total) FROM tabel_nilai_kpi WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ?");
         $stmtAvg->execute([$active_id, $periodeAktif['bulan'] ?? 0, $periodeAktif['tahun'] ?? 0]);
         $avgKPI = round($stmtAvg->fetchColumn() ?: 0, 2);
 
-        $stmtInv = $pdo->query("SELECT SUM(jumlah) FROM tabel_inventaris");
+        // COUNT(item inventaris) as requested, instead of SUM(jumlah)
+        $stmtInv = $pdo->query("SELECT COUNT(*) FROM tabel_inventaris");
         $totalInventaris = $stmtInv->fetchColumn() ?: 0;
     } catch (PDOException $e) {
-        $totalPengurus = $totalBiro = $totalInventaris = 0;
+        $totalPengurus = $totalBiro = $totalDivisi = $totalInventaris = 0;
         $avgKPI = 0;
     }
 }
 
-// 2. Personal Metrics (For Everyone)
 try {
     // Personal KPI Score (Latest)
     $stmtMyKPI = $pdo->prepare("SELECT * FROM tabel_nilai_kpi WHERE nokta = ? AND kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC LIMIT 1");
     $stmtMyKPI->execute([$my_nokta, $active_id]);
     $myKPI = $stmtMyKPI->fetch();
 
-    // Current Month Discipline Status
     if ($periodeAktif) {
         // Kas
         $stmtMyKas = $pdo->prepare("SELECT status_bayar FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
@@ -78,21 +73,143 @@ try {
     $myHadir = 0;
 }
 
-// 4. Universal Remaining Assessments Count (For all Raters except Super Admin)
 if ($periodeAktif && $role_name != 'Super Admin') {
-    $stmtRem = $pdo->prepare("SELECT COUNT(*) 
-                             FROM tabel_pengurus p 
-                             JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
-                             JOIN tabel_role r ON j.role_id = r.id_role
-                             LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
-                             WHERE r.nama_role NOT IN ('PPI', 'Koorkam', 'Super Admin') 
-                             AND p.nokta != ?
-                             AND tp.id_penilaian IS NULL");
-    $stmtRem->execute([$active_id, $my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun'], $my_nokta]);
-    $remAssess = $stmtRem->fetchColumn();
+    // Check if user is a penilai
+    $stmtCheckPenilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
+                                       WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND tipe = 'penilai'");
+    $stmtCheckPenilai->execute([$active_id, $periodeAktif['bulan'], $periodeAktif['tahun']]);
+    $has_penilai_config = ($stmtCheckPenilai->fetchColumn() > 0);
+
+    $is_allowed_to_assess = true;
+    if ($has_penilai_config) {
+        $stmtIsPenilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
+                                         WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND nokta = ? AND tipe = 'penilai'");
+        $stmtIsPenilai->execute([$active_id, $periodeAktif['bulan'], $periodeAktif['tahun'], $my_nokta]);
+        $is_allowed_to_assess = ($stmtIsPenilai->fetchColumn() > 0);
+    }
+
+    if (!$is_allowed_to_assess) {
+        $remAssess = 0;
+    } else {
+        // Check if there is a 'dinilai' configuration
+        $stmtCheckDinilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
+                                           WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND tipe = 'dinilai'");
+        $stmtCheckDinilai->execute([$active_id, $periodeAktif['bulan'], $periodeAktif['tahun']]);
+        $has_dinilai_config = ($stmtCheckDinilai->fetchColumn() > 0);
+
+        if ($has_dinilai_config) {
+            $stmtRem = $pdo->prepare("SELECT COUNT(*) 
+                                     FROM tabel_pengurus p 
+                                     JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                     JOIN tabel_role r ON j.role_id = r.id_role
+                                     JOIN tabel_konfigurasi_penilaian kp ON p.nokta = kp.nokta AND kp.kepengurusan_id = ? AND kp.bulan = ? AND kp.tahun = ? AND kp.tipe = 'dinilai'
+                                     LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
+                                     WHERE r.nama_role NOT IN ('PPI', 'Koorkam', 'Super Admin') 
+                                     AND p.nokta != ?
+                                     AND tp.id_penilaian IS NULL");
+            $stmtRem->execute([$active_id, $active_id, $periodeAktif['bulan'], $periodeAktif['tahun'], $my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun'], $my_nokta]);
+        } else {
+            $stmtRem = $pdo->prepare("SELECT COUNT(*) 
+                                     FROM tabel_pengurus p 
+                                     JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                     JOIN tabel_role r ON j.role_id = r.id_role
+                                     LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
+                                     WHERE r.nama_role NOT IN ('PPI', 'Koorkam', 'Super Admin') 
+                                     AND p.nokta != ?
+                                     AND tp.id_penilaian IS NULL");
+            $stmtRem->execute([$active_id, $my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun'], $my_nokta]);
+        }
+        $remAssess = $stmtRem->fetchColumn();
+    }
 } else {
     $remAssess = 0;
 }
+
+// Queries for Kehadiran Trend
+try {
+    if ($is_admin_view) {
+        $stmtHadirTrend = $pdo->prepare("SELECT k.bulan, k.tahun, COUNT(CASE WHEN kh.status_hadir = 'hadir' THEN 1 END) * 100.0 / COUNT(*) as avg_hadir 
+                                         FROM tabel_kehadiran kh 
+                                         JOIN tabel_kegiatan k ON kh.kegiatan_id = k.id_kegiatan 
+                                         WHERE k.kepengurusan_id = ? 
+                                         GROUP BY k.tahun, k.bulan 
+                                         ORDER BY k.tahun ASC, k.bulan ASC LIMIT 6");
+        $stmtHadirTrend->execute([$active_id]);
+    } else {
+        $stmtHadirTrend = $pdo->prepare("SELECT k.bulan, k.tahun, COUNT(CASE WHEN kh.status_hadir = 'hadir' THEN 1 END) * 100.0 / COUNT(*) as avg_hadir 
+                                         FROM tabel_kehadiran kh 
+                                         JOIN tabel_kegiatan k ON kh.kegiatan_id = k.id_kegiatan 
+                                         WHERE kh.nokta_pengurus = ? AND k.kepengurusan_id = ? 
+                                         GROUP BY k.tahun, k.bulan 
+                                         ORDER BY k.tahun ASC, k.bulan ASC LIMIT 6");
+        $stmtHadirTrend->execute([$my_nokta, $active_id]);
+    }
+    $hadirTrendResults = $stmtHadirTrend->fetchAll();
+    $hadirLabels = [];
+    $hadirData = [];
+    foreach ($hadirTrendResults as $ht) {
+        $hadirLabels[] = $ht['bulan'] . '/' . substr($ht['tahun'], 2);
+        $hadirData[] = round($ht['avg_hadir'], 1);
+    }
+    if (empty($hadirData)) {
+        $hadirLabels = ['Data Kosong'];
+        $hadirData = [0];
+    }
+} catch (PDOException $e) {
+    $hadirLabels = ['Error'];
+    $hadirData = [0];
+}
+
+// Queries for Kas Trend
+try {
+    if ($is_admin_view) {
+        $stmtKasTrend = $pdo->query("SELECT MONTH(tanggal) as bulan, YEAR(tanggal) as tahun, 
+                                            SUM(CASE WHEN jenis = 'masuk' THEN jumlah ELSE 0 END) as masuk, 
+                                            SUM(CASE WHEN jenis = 'keluar' THEN jumlah ELSE 0 END) as keluar 
+                                     FROM tabel_kas_umum 
+                                     GROUP BY YEAR(tanggal), MONTH(tanggal) 
+                                     ORDER BY YEAR(tanggal) ASC, MONTH(tanggal) ASC LIMIT 6");
+        $kasTrendResults = $stmtKasTrend->fetchAll();
+        $kasLabels = [];
+        $kasMasukData = [];
+        $kasKeluarData = [];
+        foreach ($kasTrendResults as $kt) {
+            $kasLabels[] = $kt['bulan'] . '/' . substr($kt['tahun'], 2);
+            $kasMasukData[] = (float)$kt['masuk'];
+            $kasKeluarData[] = (float)$kt['keluar'];
+        }
+        if (empty($kasLabels)) {
+            $kasLabels = ['Data Kosong'];
+            $kasMasukData = [0];
+            $kasKeluarData = [0];
+        }
+    } else {
+        $stmtKasTrend = $pdo->prepare("SELECT bulan, tahun, nominal FROM tabel_kas_pengurus 
+                                        WHERE nokta_pengurus = ? 
+                                        ORDER BY tahun ASC, bulan ASC LIMIT 6");
+        $stmtKasTrend->execute([$my_nokta]);
+        $kasTrendResults = $stmtKasTrend->fetchAll();
+        $kasLabels = [];
+        $kasData = [];
+        foreach ($kasTrendResults as $kt) {
+            $kasLabels[] = $kt['bulan'] . '/' . substr($kt['tahun'], 2);
+            $kasData[] = (float)$kt['nominal'];
+        }
+        if (empty($kasLabels)) {
+            $kasLabels = ['Data Kosong'];
+            $kasData = [0];
+        }
+    }
+} catch (PDOException $e) {
+    $kasLabels = ['Error'];
+    $kasMasukData = [0];
+    $kasKeluarData = [0];
+    $kasData = [0];
+}
+
+$title = "Dashboard Utama";
+include '../layout/header.php';
+include '../layout/sidebar.php';
 
 $greeting = "Selamat Datang";
 $time = date("H");
@@ -107,32 +224,27 @@ else
 ?>
 
 <div id="content" class="fade-in">
-    <!-- Top Header Bar -->
     <div class="row align-items-center mb-4 g-3">
         <div class="col-md-6">
-            <h3 class="fw-800 text-dark mb-1"><?= $greeting ?>, <?= explode(' ', $_SESSION['user']['nama'])[0] ?>! 👋
-            </h3>
+            <h3 class="fw-800 text-dark mb-1"><?= $greeting ?>, <?= explode(' ', $_SESSION['user']['nama'])[0] ?>! 👋</h3>
         </div>
         <div class="col-md-6 text-md-end">
-            <div
-                class="d-inline-flex align-items-center p-2 bg-white rounded-pill shadow-sm border-light border px-4 h-100">
+            <div class="d-inline-flex align-items-center p-2 bg-white rounded-pill shadow-sm border-light border px-4 h-100">
                 <i class="fas fa-calendar-alt text-primary me-2"></i>
                 <span class="small fw-800 text-dark"><?= $active_p['nama_periode'] ?? 'Tahun Belum Diatur' ?></span>
                 <div class="vr mx-3" style="height: 20px; opacity: 0.1;"></div>
-                <span
-                    class="badge <?= $periodeAktif ? 'bg-brand-red-soft text-brand-red' : 'bg-slate-100 text-muted' ?> px-3 py-2 rounded-pill fw-bold">
+                <span class="badge <?= $periodeAktif ? 'bg-brand-red-soft text-brand-red' : 'bg-slate-100 text-muted' ?> px-3 py-2 rounded-pill fw-bold">
                     <?= $periodeAktif ? '<i class="fas fa-check-circle me-1"></i> Bulan ' . $periodeAktif['bulan'] . ' Terbuka' : '<i class="fas fa-lock me-1"></i> Ditutup' ?>
                 </span>
             </div>
         </div>
     </div>
 
-    <!-- Dashboard Content Rows -->
     <?php if ($is_admin_view): ?>
-        <!-- Quick Personal KPI Card for Admins -->
+        <!-- KPI Overview Cards -->
         <div class="row g-4 mb-4">
-            <div class="col-12">
-                <div class="card border-0 shadow-sm rounded-4 bg-gradient-brand-red text-white">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 bg-gradient-brand-red text-white h-100">
                     <div class="card-body p-4 d-flex align-items-center justify-content-between">
                         <div class="d-flex align-items-center">
                             <div class="bg-white text-brand-red rounded-circle d-flex align-items-center justify-content-center me-3 shadow-lg"
@@ -141,8 +253,7 @@ else
                             </div>
                             <div>
                                 <h6 class="mb-0 fw-600 opacity-75">Performa Pribadi Saya</h6>
-                                <h3 class="mb-0 fw-800 tracking-tight">Skor KPI:
-                                    <?= number_format($myKPI['nilai_kpi_total'] ?? 0, 2) ?> / 4.0</h3>
+                                <h3 class="mb-0 fw-800 tracking-tight">Skor KPI: <?= number_format($myKPI['nilai_kpi_total'] ?? 0, 2) ?> / 4.0</h3>
                             </div>
                         </div>
                         <div class="text-end d-none d-md-block">
@@ -153,12 +264,29 @@ else
                     </div>
                 </div>
             </div>
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 bg-dark text-white h-100">
+                    <div class="card-body p-4 d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-white text-dark rounded-circle d-flex align-items-center justify-content-center me-3 shadow-lg"
+                                style="width: 50px; height: 50px;">
+                                <i class="fas fa-chart-line fa-lg"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 fw-600 opacity-75">Skor Rata-rata KPI Organisasi</h6>
+                                <h3 class="mb-0 fw-800 tracking-tight">Rata-rata: <?= number_format($avgKPI, 2) ?> / 4.0</h3>
+                            </div>
+                        </div>
+                        <p class="mb-0 small text-brand-green fw-bold d-none d-md-block"><i class="fas fa-check-circle me-1"></i> Real-time</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- MANAGER VIEW: Organization Focus -->
-        <!-- Quick Stats Row -->
+        <!-- Count Stats Cards (Total Pengurus & Jumlah Inventaris) -->
         <div class="row g-4 mb-4">
-            <div class="col-md-4">
+            <!-- Total Pengurus -->
+            <div class="col-md-6">
                 <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100 stats-card">
                     <div class="card-body p-4 position-relative">
                         <div class="d-flex align-items-center mb-4">
@@ -170,14 +298,13 @@ else
                         </div>
                         <div class="d-flex align-items-baseline">
                             <h2 class="fw-800 text-dark display-6 mb-0"><?= $totalPengurus ?></h2>
-                            <span
-                                class="ms-3 badge bg-brand-red-soft text-brand-red rounded-pill px-3 py-1 fw-bold small">Periode
-                                <?= date('Y') ?></span>
+                            <span class="ms-3 badge bg-brand-red-soft text-brand-red rounded-pill px-3 py-1 fw-bold small">Periode <?= date('Y') ?></span>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <!-- Jumlah Inventaris (COUNT of items) -->
+            <div class="col-md-6">
                 <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100 stats-card">
                     <div class="card-body p-4 position-relative">
                         <div class="d-flex align-items-center mb-4">
@@ -194,28 +321,9 @@ else
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100 bg-dark text-white stats-card">
-                    <div class="card-body p-4">
-                        <div class="d-flex align-items-center mb-4">
-                            <div class="stats-icon bg-white text-dark shadow-lg me-3"
-                                style="width: 54px; height: 54px; border-radius: 16px;">
-                                <i class="fas fa-chart-line fa-lg"></i>
-                            </div>
-                            <h6 class="text-white-50 fw-800 small text-uppercase mb-0 ls-1">Skor Rata-rata KPI</h6>
-                        </div>
-                        <div class="d-flex align-items-baseline mb-2">
-                            <h2 class="fw-800 text-white display-6 mb-0"><?= number_format($avgKPI, 2) ?></h2>
-                            <span class="ms-2 text-white-50 fw-600">/ 4.0</span>
-                        </div>
-                        <p class="mb-0 small text-brand-green fw-bold"><i class="fas fa-check-circle me-1"></i> Data
-                            Real-time Organisasi</p>
-                    </div>
-                </div>
-            </div>
         </div>
     <?php else: ?>
-        <!-- PERSONAL VIEW: Staff/Kadiv Focus -->
+        <!-- Non-admin Stats Cards -->
         <div class="row g-4 mb-4">
             <div class="col-md-6">
                 <!-- Card 1: My Score -->
@@ -229,8 +337,7 @@ else
                             <h6 class="text-muted fw-800 small text-uppercase mb-0 ls-1">Skor KPI Saya</h6>
                         </div>
                         <div class="d-flex align-items-baseline">
-                            <h2 class="fw-800 text-dark display-6 mb-0">
-                                <?= number_format($myKPI['nilai_kpi_total'] ?? 0, 2) ?></h2>
+                            <h2 class="fw-800 text-dark display-6 mb-0"><?= number_format($myKPI['nilai_kpi_total'] ?? 0, 2) ?></h2>
                             <span class="ms-2 text-muted fw-600">/ 4.0</span>
                         </div>
                         <p class="mb-0 text-muted small mt-2">Berdasarkan kalkulasi periode terakhir.</p>
@@ -252,8 +359,7 @@ else
                         <div class="d-flex flex-column gap-2">
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="small fw-600 text-muted">Kas Bulan Ini</span>
-                                <span
-                                    class="badge <?= $myKas == 'sudah' ? 'bg-brand-green-soft text-brand-green' : 'bg-danger-soft text-danger' ?> rounded-pill px-3 py-1">
+                                <span class="badge <?= $myKas == 'sudah' ? 'bg-brand-green-soft text-brand-green' : 'bg-danger-soft text-danger' ?> rounded-pill px-3 py-1">
                                     <?= strtoupper($myKas) ?>
                                 </span>
                             </div>
@@ -271,14 +377,12 @@ else
         </div>
     <?php endif; ?>
 
-    <!-- Charts and Dynamic Side Row -->
+    <!-- Trend KPI Chart and Leaderboard -->
     <div class="row g-4 mt-2">
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100">
-                <div
-                    class="card-header bg-white border-0 d-flex justify-content-between align-items-center py-4 px-4 border-bottom border-light">
-                    <h6 class="mb-0 fw-800 text-dark">
-                        <?= $is_admin_view ? 'Tren Kinerja Kolektif' : 'Grafik Performa Saya' ?></h6>
+                <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center py-4 px-4 border-bottom border-light">
+                    <h6 class="mb-0 fw-800 text-dark"><?= $is_admin_view ? 'Tren Kinerja Kolektif (Grafik KPI)' : 'Grafik Performa Saya (KPI)' ?></h6>
                 </div>
                 <div class="card-body p-4">
                     <canvas id="kpiChart" height="280"></canvas>
@@ -287,10 +391,8 @@ else
         </div>
         <div class="col-lg-4">
             <?php if ($is_admin_view): ?>
-                <!-- Leaderboard (Top 3) -->
-                <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
-                    <div
-                        class="card-header bg-white border-0 py-4 px-4 border-bottom border-light d-flex justify-content-between align-items-center">
+                <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 h-100">
+                    <div class="card-header bg-white border-0 py-4 px-4 border-bottom border-light d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-800 text-dark">Leaderboard (Top 3)</h6>
                         <i class="fas fa-crown text-amber-400"></i>
                     </div>
@@ -324,8 +426,7 @@ else
                                                 <small class="text-muted fw-600"><?= $lead['nama_role'] ?></small>
                                             </div>
                                             <div class="text-end">
-                                                <div class="fw-800 text-brand-red"><?= number_format($lead['nilai_kpi_total'], 2) ?>
-                                                </div>
+                                                <div class="fw-800 text-brand-red"><?= number_format($lead['nilai_kpi_total'], 2) ?></div>
                                                 <small class="text-muted small ls-1 opacity-50">KPI SCORE</small>
                                             </div>
                                         </div>
@@ -339,8 +440,7 @@ else
                     </div>
                 </div>
             <?php else: ?>
-                <!-- Assessment Alert Card -->
-                <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 <?= $remAssess > 0 ? 'border-amber border-2' : '' ?>"
+                <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 <?= $remAssess > 0 ? 'border-amber border-2' : '' ?> h-100"
                     style="background: linear-gradient(135deg, #fff 0%, #fff9f0 100%);">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center mb-4">
@@ -368,65 +468,62 @@ else
                     </div>
                 </div>
             <?php endif; ?>
+        </div> 
+    </div>
 
-        </div> <!-- End Right Col (col-lg-4) -->
-    </div> <!-- End Main Row (row g-4 mt-2) -->
-</div> <!-- End Content Wrapper -->
+    <!-- Trend Presensi (Kehadiran) & Trend Kas charts -->
+    <div class="row g-4 mt-2 mb-5">
+        <!-- Grafik Kehadiran -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center py-4 px-4 border-bottom border-light">
+                    <h6 class="mb-0 fw-800 text-dark">
+                        <?= $is_admin_view ? 'Tren Presensi Kehadiran' : 'Grafik Presensi Kehadiran Saya' ?>
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <canvas id="hadirChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <!-- Grafik Kas -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center py-4 px-4 border-bottom border-light">
+                    <h6 class="mb-0 fw-800 text-dark">
+                        <?= $is_admin_view ? 'Tren Alur Keuangan Kas' : 'Grafik Setoran Kas Saya' ?>
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <canvas id="kasChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 
 
 <style>
-    .bg-light-soft {
-        background-color: #f1f5f9;
-        border: none;
-    }
-
-    .stats-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .fw-800 {
-        font-weight: 800;
-    }
-
-    .fw-600 {
-        font-weight: 600;
-    }
-
-    .ls-1 {
-        letter-spacing: 0.5px;
-    }
-
-    .rounded-4 {
-        border-radius: 1.5rem !important;
-    }
-
-    .border-bottom-light {
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-    .transparency-hover:hover {
-        background-color: #fcfdfe;
-        transition: all 0.3s ease;
-    }
-
-    .stats-card {
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-
-    .stats-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08) !important;
-    }
+    .bg-light-soft { background-color: #f1f5f9; border: none; }
+    .stats-icon { display: flex; align-items: center; justify-content: center; }
+    .fw-800 { font-weight: 800; }
+    .fw-600 { font-weight: 600; }
+    .ls-1 { letter-spacing: 0.5px; }
+    .rounded-4 { border-radius: 1.5rem !important; }
+    .border-bottom-light { border-bottom: 1px solid #f1f5f9; }
+    .transparency-hover:hover { background-color: #fcfdfe; transition: all 0.3s ease; }
+    .stats-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .stats-card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08) !important; }
+    .border-amber { border-color: #fbbf24 !important; }
+    .btn-amber { background-color: #fbbf24; color: #fff; border: none; transition: all 0.3s ease; }
+    .btn-amber:hover { background-color: #f59e0b; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); }
+    .text-amber-600 { color: #d97706; }
 </style>
 
 <?php
-// Prepare Plot Data for Chart.js
 $plotLabels = [];
 $plotData = [];
 
 if ($is_admin_view) {
-    // Trend Kolektif (Average of all members)
     $stmtTrend = $pdo->prepare("SELECT bulan, tahun, AVG(nilai_kpi_total) as avg_score 
                               FROM tabel_nilai_kpi 
                               WHERE kepengurusan_id = ? 
@@ -456,12 +553,13 @@ if (empty($plotData)) {
 ?>
 
 <script>
+    // 1. KPI Trend Chart
     const ctx = document.getElementById('kpiChart').getContext('2d');
     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
     gradient.addColorStop(0, 'rgba(220, 38, 38, 0.25)'); // Red 600 soft
     gradient.addColorStop(1, 'rgba(220, 38, 38, 0.0)');
 
-    const kpiChart = new Chart(ctx, {
+    new Chart(ctx, {
         type: 'line',
         data: {
             labels: <?= json_encode($plotLabels) ?>,
@@ -508,30 +606,136 @@ if (empty($plotData)) {
             }
         }
     });
+
+    // 2. Attendance Trend Chart
+    const ctxHadir = document.getElementById('hadirChart').getContext('2d');
+    const gradientHadir = ctxHadir.createLinearGradient(0, 0, 0, 400);
+    gradientHadir.addColorStop(0, 'rgba(22, 163, 74, 0.25)'); // Green soft
+    gradientHadir.addColorStop(1, 'rgba(22, 163, 74, 0.0)');
+    
+    new Chart(ctxHadir, {
+        type: 'line',
+        data: {
+            labels: <?= json_encode($hadirLabels) ?>,
+            datasets: [{
+                label: 'Kehadiran (%)',
+                data: <?= json_encode($hadirData) ?>,
+                borderColor: '#16A34A', // Green 600
+                borderWidth: 4,
+                tension: 0.4,
+                pointRadius: 4,
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: '#16A34A',
+                pointBorderWidth: 2,
+                fill: true,
+                backgroundColor: gradientHadir
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    ticks: { stepSize: 20, font: { weight: '600' } },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { weight: '600' } }
+                }
+            }
+        }
+    });
+
+    // 3. Kas Trend Chart
+    const ctxKas = document.getElementById('kasChart').getContext('2d');
+    <?php if ($is_admin_view): ?>
+    new Chart(ctxKas, {
+        type: 'bar',
+        data: {
+            labels: <?= json_encode($kasLabels) ?>,
+            datasets: [
+                {
+                    label: 'Kas Masuk (Rp)',
+                    data: <?= json_encode($kasMasukData) ?>,
+                    backgroundColor: '#16A34A',
+                    borderRadius: 6
+                },
+                {
+                    label: 'Kas Keluar (Rp)',
+                    data: <?= json_encode($kasKeluarData) ?>,
+                    backgroundColor: '#DC2626',
+                    borderRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { font: { weight: '600' } },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { weight: '600' } }
+                }
+            }
+        }
+    });
+    <?php else: ?>
+    const gradientKas = ctxKas.createLinearGradient(0, 0, 0, 400);
+    gradientKas.addColorStop(0, 'rgba(37, 99, 235, 0.25)'); // Blue soft
+    gradientKas.addColorStop(1, 'rgba(37, 99, 235, 0.0)');
+    
+    new Chart(ctxKas, {
+        type: 'line',
+        data: {
+            labels: <?= json_encode($kasLabels) ?>,
+            datasets: [{
+                label: 'Setoran (Rp)',
+                data: <?= json_encode($kasData) ?>,
+                borderColor: '#2563EB', // Blue 600
+                borderWidth: 4,
+                tension: 0.4,
+                pointRadius: 4,
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: '#2563EB',
+                pointBorderWidth: 2,
+                fill: true,
+                backgroundColor: gradientKas
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { font: { weight: '600' } },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { weight: '600' } }
+                }
+            }
+        }
+    });
+    <?php endif; ?>
 </script>
-
-<style>
-    /* Additional specific styles for role-based cards */
-    .border-amber {
-        border-color: #fbbf24 !important;
-    }
-
-    .btn-amber {
-        background-color: #fbbf24;
-        color: #fff;
-        border: none;
-        transition: all 0.3s ease;
-    }
-
-    .btn-amber:hover {
-        background-color: #f59e0b;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
-    }
-
-    .text-amber-600 {
-        color: #d97706;
-    }
-</style>
 
 <?php include '../layout/footer.php'; ?>

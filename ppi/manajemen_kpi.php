@@ -2,7 +2,8 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_role(['Super Admin', 'PPI']);
+check_permission('kpi.manage');
+
 
 $title = "Manajemen KPI & Bobot";
 include '../layout/header.php';
@@ -11,11 +12,9 @@ include '../layout/sidebar.php';
 $message = '';
 $error = '';
 
-// Handle Update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_weights'])) {
     $weights = $_POST['bobot']; // Array: kunci => value
     
-    // Validation: Main Weights (category 'utama') sum to 100
     $sumUtama = 0;
     $sumDisiplin = 0;
     
@@ -42,7 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_weights'])) {
     }
 }
 
-// Fetch current settings
 $settings = $pdo->query("SELECT * FROM tabel_pengaturan_kpi ORDER BY kategori DESC, kunci ASC")->fetchAll();
 $utama = array_filter($settings, fn($s) => $s['kategori'] == 'utama');
 $disiplin = array_filter($settings, fn($s) => $s['kategori'] == 'disiplin');
@@ -70,7 +68,6 @@ $disiplin = array_filter($settings, fn($s) => $s['kategori'] == 'disiplin');
 
     <form method="POST">
         <div class="row g-4">
-            <!-- Bobot Utama -->
             <div class="col-lg-6">
                 <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden">
                     <div class="card-header bg-white border-0 py-4 px-4 border-bottom border-light">
@@ -100,7 +97,6 @@ $disiplin = array_filter($settings, fn($s) => $s['kategori'] == 'disiplin');
                 </div>
             </div>
 
-            <!-- Bobot Disiplin -->
             <div class="col-lg-6">
                 <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden">
                     <div class="card-header bg-white border-0 py-4 px-4 border-bottom border-light">
