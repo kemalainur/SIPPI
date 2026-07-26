@@ -19,7 +19,7 @@ include '../layout/sidebar.php';
 
 $all_members = [];
 if ($is_admin) {
-    $all_members = $pdo->query("SELECT nokta, nama FROM tabel_pengurus ORDER BY nama ASC")->fetchAll();
+    $all_members = $pdo->query("SELECT nokta, nama FROM tabel_pengurus WHERE (angkatan IS NULL OR angkatan != '2023') ORDER BY nama ASC")->fetchAll();
 }
 
 $active_p = get_active_kepengurusan();

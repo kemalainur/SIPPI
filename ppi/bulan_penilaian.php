@@ -20,9 +20,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['open_periode'])) {
         $bulan = $_POST['bulan'];
         $tahun = $_POST['tahun'];
+        $jenis_periode = $_POST['jenis_periode'] ?? 'Bulanan';
+        $mode_penilaian = $_POST['mode_penilaian'] ?? 'PPI';
         try {
-            $stmt = $pdo->prepare("INSERT INTO tabel_periode (bulan, tahun, status, kepengurusan_id) VALUES (?, ?, 'aktif', ?)");
-            $stmt->execute([$bulan, $tahun, $active_p['id_kepengurusan']]);
+            $stmt = $pdo->prepare("INSERT INTO tabel_periode (bulan, tahun, status, kepengurusan_id, jenis_periode, mode_penilaian) VALUES (?, ?, 'aktif', ?, ?, ?)");
+            $stmt->execute([$bulan, $tahun, $active_p['id_kepengurusan'], $jenis_periode, $mode_penilaian]);
             $message = "Bulan Penilaian Berhasil Dibuka!";
         } catch (PDOException $e) {
             $message = "Gagal: Bulan ini mungkin sudah ada.";
@@ -36,8 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = $_POST['id_periode'];
         $bulan = $_POST['bulan'];
         $tahun = $_POST['tahun'];
-        $stmt = $pdo->prepare("UPDATE tabel_periode SET bulan = ?, tahun = ? WHERE id_periode = ?");
-        $stmt->execute([$bulan, $tahun, $id]);
+        $jenis_periode = $_POST['jenis_periode'] ?? 'Bulanan';
+        $mode_penilaian = $_POST['mode_penilaian'] ?? 'PPI';
+        $stmt = $pdo->prepare("UPDATE tabel_periode SET bulan = ?, tahun = ?, jenis_periode = ?, mode_penilaian = ? WHERE id_periode = ?");
+        $stmt->execute([$bulan, $tahun, $jenis_periode, $mode_penilaian, $id]);
         $message = "Bulan Penilaian Berhasil Diperbarui!";
     } elseif (isset($_POST['delete_bulan'])) {
         $id = $_POST['id_periode'];
@@ -121,11 +125,16 @@ $indonesian_months = [
                         <div class="bg-gradient-emerald p-4 rounded-4 text-white text-center shadow-sm mb-4">
                             <h2 class="fw-800 mb-0"><?= $indonesian_months[(int)$active['bulan']] ?></h2>
                             <p class="mb-0 opacity-75 fw-600 ls-1"><?= $active['tahun'] ?></p>
-                            <div class="mt-3">
+                            <div class="mt-3 d-flex justify-content-center gap-1 flex-wrap">
                                 <span class="badge bg-white bg-opacity-20 px-3 py-1 rounded-pill small fw-bold">SEDANG BERJALAN</span>
+                                <span class="badge bg-white text-dark px-2 py-1 rounded-pill small fw-bold"><?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?></span>
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill small fw-bold"><?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?></span>
                             </div>
                         </div>
                         <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-outline-primary w-100 rounded-pill fw-800 shadow-sm py-2" data-bs-toggle="modal" data-bs-target="#editModal<?= $active['id_periode'] ?>">
+                                <i class="fas fa-sliders-h me-1"></i> Ubah Jenis & Mode
+                            </button>
                             <form method="POST" onsubmit="return confirm('Tutup bulan penilaian ini?')">
                                 <input type="hidden" name="id_periode" value="<?= $active['id_periode'] ?>">
                                 <button type="submit" name="close_periode" class="btn btn-dark w-100 rounded-pill fw-800 shadow-sm py-2">
@@ -210,7 +219,8 @@ $indonesian_months = [
                             <thead class="bg-slate-50 text-muted small text-uppercase">
                                 <tr>
                                     <th class="ps-4 py-3">Bulan & Tahun</th>
-                                    <th class="text-center">Status Arus</th>
+                                    <th class="text-center">Jenis & Mode</th>
+                                    <th class="text-center">Status</th>
                                     <th class="text-center pe-4">Aksi</th>
                                 </tr>
                             </thead>
@@ -225,6 +235,10 @@ $indonesian_months = [
                                                     </div>
                                                     <div class="fw-800 text-dark"><?= $indonesian_months[(int)$h['bulan']] ?> <?= $h['tahun'] ?></div>
                                                 </div>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-light text-dark px-2 py-1 rounded-pill small fw-bold me-1"><?= htmlspecialchars($h['jenis_periode'] ?? 'Bulanan') ?></span>
+                                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill small fw-bold"><?= htmlspecialchars($h['mode_penilaian'] ?? 'PPI') ?></span>
                                             </td>
                                             <td class="text-center">
                                                 <span class="badge <?= $h['status'] == 'aktif' ? 'bg-brand-green-soft text-brand-green' : 'bg-slate-100 text-muted' ?> px-3 py-1 rounded-pill small fw-bold">
@@ -273,6 +287,20 @@ $indonesian_months = [
                             <label class="form-label small fw-800 text-muted ls-1 text-uppercase">Tahun</label>
                             <input type="number" name="tahun" value="<?= date('Y') ?>" class="form-control border-0 bg-light" required>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-800 text-muted ls-1 text-uppercase">Jenis Periode</label>
+                            <select name="jenis_periode" id="open_jenis_periode" class="form-select border-0 bg-light" onchange="autoSelectMode(this, 'open_mode_penilaian')">
+                                <option value="Bulanan">Bulanan</option>
+                                <option value="Triwulanan">Triwulanan</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-800 text-muted ls-1 text-uppercase">Mode Penilaian</label>
+                            <select name="mode_penilaian" id="open_mode_penilaian" class="form-select border-0 bg-light">
+                                <option value="PPI">Penilaian PPI (TIM PPI)</option>
+                                <option value="Peer Assessment">Peer Assessment (Pengurus)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-0 p-4 pt-0">
@@ -282,6 +310,18 @@ $indonesian_months = [
         </div>
     </div>
 </div>
+
+<script>
+function autoSelectMode(selectElem, targetId) {
+    var modeSelect = document.getElementById(targetId);
+    if (!modeSelect) return;
+    if (selectElem.value === 'Bulanan') {
+        modeSelect.value = 'PPI';
+    } else if (selectElem.value === 'Triwulanan') {
+        modeSelect.value = 'Peer Assessment';
+    }
+}
+</script>
 
 <?php if($active): ?>
 <div class="modal fade" id="addKegiatanModal" tabindex="-1">
@@ -311,28 +351,46 @@ $indonesian_months = [
 
 <?php foreach($history as $h): ?>
 <div class="modal fade" id="editModal<?= $h['id_periode'] ?>" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
             <form method="POST">
                 <div class="modal-header border-0 p-4 pb-0">
-                    <h6 class="fw-800">Ubah Bulan</h6>
+                    <h6 class="fw-800">Ubah Bulan Penilaian</h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
                     <input type="hidden" name="id_periode" value="<?= $h['id_periode'] ?>">
-                    <div class="mb-3">
-                        <label class="form-label small fw-800 text-muted text-uppercase">Bulan</label>
-                        <select name="bulan" class="form-select border-0 bg-light">
-                            <?php foreach($indonesian_months as $m => $name): ?>
-                                <option value="<?= $m ?>" <?= $m == $h['bulan'] ? 'selected' : '' ?>><?= $name ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label class="form-label small fw-800 text-muted text-uppercase">Bulan</label>
+                            <select name="bulan" class="form-select border-0 bg-light">
+                                <?php foreach($indonesian_months as $m => $name): ?>
+                                    <option value="<?= $m ?>" <?= $m == $h['bulan'] ? 'selected' : '' ?>><?= $name ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-800 text-muted text-uppercase">Tahun</label>
+                            <input type="number" name="tahun" value="<?= $h['tahun'] ?>" class="form-control border-0 bg-light">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-800 text-muted text-uppercase">Jenis Periode</label>
+                            <select name="jenis_periode" class="form-select border-0 bg-light">
+                                <option value="Bulanan" <?= ($h['jenis_periode'] ?? 'Bulanan') == 'Bulanan' ? 'selected' : '' ?>>Bulanan</option>
+                                <option value="Triwulanan" <?= ($h['jenis_periode'] ?? '') == 'Triwulanan' ? 'selected' : '' ?>>Triwulanan</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-800 text-muted text-uppercase">Mode Penilaian</label>
+                            <select name="mode_penilaian" class="form-select border-0 bg-light">
+                                <option value="PPI" <?= ($h['mode_penilaian'] ?? 'PPI') == 'PPI' ? 'selected' : '' ?>>Penilaian PPI (TIM PPI)</option>
+                                <option value="Peer Assessment" <?= ($h['mode_penilaian'] ?? '') == 'Peer Assessment' ? 'selected' : '' ?>>Peer Assessment (Pengurus)</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-800 text-muted text-uppercase">Tahun</label>
-                        <input type="number" name="tahun" value="<?= $h['tahun'] ?>" class="form-control border-0 bg-light">
-                    </div>
-                    <button type="submit" name="edit_bulan" class="btn btn-primary w-100 fw-800 shadow-sm">Simpan</button>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="submit" name="edit_bulan" class="btn btn-primary w-100 fw-800 shadow-sm py-2">Simpan Perubahan</button>
                 </div>
             </form>
         </div>

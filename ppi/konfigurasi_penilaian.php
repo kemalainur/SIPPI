@@ -121,7 +121,8 @@ if ($active_id) {
                                   FROM tabel_pengurus p 
                                   JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
                                   JOIN tabel_role r ON j.role_id = r.id_role
-                                  WHERE r.nama_role != 'Super Admin'
+                                  WHERE r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas')
+                                  AND (p.angkatan IS NULL OR p.angkatan != '2023')
                                   ORDER BY p.nama ASC");
     $stmtMembers->execute([$active_id]);
     $members = $stmtMembers->fetchAll();

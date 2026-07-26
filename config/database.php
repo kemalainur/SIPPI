@@ -149,11 +149,18 @@ function get_kpi_settings() {
 function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
     global $pdo;
 
+    // Angkatan 2023 tidak diikutsertakan dalam sistem penilaian KPI
+    $stmtAngk = $pdo->prepare("SELECT angkatan FROM tabel_pengurus WHERE nokta = ?");
+    $stmtAngk->execute([$nokta]);
+    if ($stmtAngk->fetchColumn() === '2023') {
+        return false;
+    }
+
     $stmtTotalKegiatan = $pdo->prepare("SELECT COUNT(*) FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
     $stmtTotalKegiatan->execute([$bulan, $tahun, $kepengurusan_id]);
-    $totalKegiatan = max(1, $stmtTotalKegiatan->fetchColumn());
+    $totalKegiatan = max(1, (int)$stmtTotalKegiatan->fetchColumn());
 
-    // 2. Performance (Attitude & Komunikasi) - Peer Assessment
+    // 2. Performance (Attitude & Komunikasi) - Peer / PPI Assessment
     $stmtAK = $pdo->prepare("SELECT i.kategori, AVG(tp.skor) as avg_score
                              FROM tabel_penilaian tp
                              JOIN tabel_indikator i ON tp.indikator_id = i.id_indikator
@@ -162,48 +169,44 @@ function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
     $stmtAK->execute([$nokta, $bulan, $tahun]);
     $ak_results = $stmtAK->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    $nilai_attitude = $ak_results['attitude'] ?? 0;
-    $nilai_komunikasi = $ak_results['komunikasi'] ?? 0;
+    $nilai_attitude = (float)($ak_results['attitude'] ?? 0);
+    $nilai_komunikasi = (float)($ak_results['komunikasi'] ?? 0);
 
-    $stmtHadir = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?) AND status_hadir IN ('hadir', 'izin', 'telat')");
+    // 1. Kehadiran calculation
+    // Hadir & Izin keduanya dihitung hadir (dateng)
+    $stmtHadir = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?) AND status_hadir IN ('hadir', 'izin')");
     $stmtHadir->execute([$nokta, $bulan, $tahun, $kepengurusan_id]);
-    $jmlHadir = $stmtHadir->fetchColumn();
+    $jmlHadir = (int)$stmtHadir->fetchColumn();
 
     $persenHadir = ($jmlHadir / $totalKegiatan) * 100;
-    if ($persenHadir >= 80) $scoreHadir = 4;
-    elseif ($persenHadir >= 60) $scoreHadir = 3;
-    elseif ($persenHadir >= 40) $scoreHadir = 2;
-    else $scoreHadir = 1;
+    if ($persenHadir >= 80) {
+        $scoreHadir = 4;
+    } elseif ($persenHadir >= 60) {
+        $scoreHadir = 3;
+    } elseif ($persenHadir >= 40) {
+        $scoreHadir = 2;
+    } else {
+        $scoreHadir = 1; // < 40% -> Skor 1
+    }
 
-    $stmtTelat = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?) AND status_hadir = 'telat'");
-    $stmtTelat->execute([$nokta, $bulan, $tahun, $kepengurusan_id]);
-    $jmlTelat = $stmtTelat->fetchColumn();
-    
-    $stmtHadirMurni = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?) AND status_hadir IN ('hadir', 'telat')");
-    $stmtHadirMurni->execute([$nokta, $bulan, $tahun, $kepengurusan_id]);
-    $totalHadirMurni = max(1, $stmtHadirMurni->fetchColumn());
-
-    $persenTelat = ($jmlTelat / $totalHadirMurni) * 100;
-    if ($persenTelat <= 10) $scoreTelat = 4;
-    elseif ($persenTelat <= 30) $scoreTelat = 3;
-    elseif ($persenTelat <= 50) $scoreTelat = 2;
-    else $scoreTelat = 1;
-
+    // 2. Ketepatan Membayar Kas calculation
     $stmtKas = $pdo->prepare("SELECT status_bayar FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
     $stmtKas->execute([$nokta, $bulan, $tahun]);
     $kasStatus = $stmtKas->fetchColumn();
-    $scoreKas = ($kasStatus == 'sudah') ? 4 : 1;
+    // Membayar kas tepat waktu = Skor 4, Tidak membayar kas = Skor 2
+    $scoreKas = ($kasStatus == 'sudah') ? 4 : 2;
 
+    // 3. Perhitungan Nilai Disiplin (Kehadiran 50%, Kas 50%)
     $settings = get_kpi_settings();
-    $wHadir = $settings['weight_disiplin_hadir'] ?? 0.4;
-    $wTelat = $settings['weight_disiplin_telat'] ?? 0.4;
-    $wKas   = $settings['weight_disiplin_kas'] ?? 0.2;
-    $nilai_disiplin = ($scoreHadir * $wHadir) + ($scoreTelat * $wTelat) + ($scoreKas * $wKas);
+    $wHadir = $settings['weight_disiplin_hadir'] ?? 0.5;
+    $wKas   = $settings['weight_disiplin_kas'] ?? 0.5;
+    $nilai_disiplin = ($scoreHadir * $wHadir) + ($scoreKas * $wKas);
 
+    // 6. Perhitungan Nilai KPI Akhir (Disiplin 30%, Komunikasi 30%, Attitude 40%)
     $wAttitude   = $settings['weight_attitude'] ?? 0.4;
     $wKomunikasi = $settings['weight_komunikasi'] ?? 0.3;
     $wDisiplin   = $settings['weight_disiplin'] ?? 0.3;
-    $nilai_kpi_total = ($nilai_attitude * $wAttitude) + ($nilai_komunikasi * $wKomunikasi) + ($nilai_disiplin * $wDisiplin);
+    $nilai_kpi_total = ($nilai_disiplin * $wDisiplin) + ($nilai_komunikasi * $wKomunikasi) + ($nilai_attitude * $wAttitude);
 
     $stmtSave = $pdo->prepare("INSERT INTO tabel_nilai_kpi (nokta, bulan, tahun, kepengurusan_id, nilai_attitude, nilai_komunikasi, nilai_disiplin, nilai_kpi_total)
                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -213,5 +216,66 @@ function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
         $nilai_attitude, $nilai_komunikasi, $nilai_disiplin, $nilai_kpi_total
     ]);
 }
+
+function get_user_ppi_info($nokta, $kepengurusan_id = null) {
+    global $pdo;
+    if (!$kepengurusan_id) {
+        $active_p = get_active_kepengurusan();
+        $kepengurusan_id = $active_p['id_kepengurusan'] ?? 0;
+    }
+
+    $stmt = $pdo->prepare("SELECT j.jabatan, j.biro_id, r.nama_role, b.nama_biro, p.angkatan
+                           FROM tabel_pengurus p
+                           LEFT JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                           LEFT JOIN tabel_role r ON j.role_id = r.id_role
+                           LEFT JOIN tabel_biro b ON j.biro_id = b.id_biro
+                           WHERE p.nokta = ?");
+    $stmt->execute([$kepengurusan_id, $nokta]);
+    $row = $stmt->fetch();
+
+    $angkatan = $row['angkatan'] ?? '';
+    $is_2023 = ($angkatan == '2023');
+
+    $role_name = $_SESSION['user']['nama_role'] ?? ($row['nama_role'] ?? '');
+    $jabatan = $row['jabatan'] ?? ($_SESSION['user']['jabatan'] ?? '');
+    $biro_id = $row['biro_id'] ?? null;
+    $nama_biro = $row['nama_biro'] ?? '';
+
+    $is_super_admin = ($role_name === 'Super Admin');
+    $is_ppi_role = !$is_2023 && ($role_name === 'PPI' || strpos(strtolower($jabatan), 'ppi') !== false);
+    $is_kepala = !$is_2023 && ($is_super_admin || ($is_ppi_role && (strpos(strtolower($jabatan), 'kepala') !== false || strpos(strtolower($jabatan), 'ketua') !== false)));
+
+    if (!$biro_id && $is_ppi_role && !$is_kepala) {
+        $search_biro = '';
+        if (strpos(strtolower($jabatan), 'infokom') !== false) {
+            $search_biro = 'INFOKOM';
+        } elseif (strpos(strtolower($jabatan), 'kastrat') !== false) {
+            $search_biro = 'KASTRAT';
+        } elseif (strpos(strtolower($jabatan), 'psdm') !== false) {
+            $search_biro = 'PSDM';
+        }
+        if ($search_biro) {
+            $stmtB = $pdo->prepare("SELECT id_biro, nama_biro FROM tabel_biro WHERE kepengurusan_id = ? AND nama_biro LIKE ? LIMIT 1");
+            $stmtB->execute([$kepengurusan_id, "%$search_biro%"]);
+            $b = $stmtB->fetch();
+            if ($b) {
+                $biro_id = $b['id_biro'];
+                $nama_biro = $b['nama_biro'];
+            }
+        }
+    }
+
+    return [
+        'is_2023' => $is_2023,
+        'angkatan' => $angkatan,
+        'is_ppi' => $is_ppi_role,
+        'is_kepala' => $is_kepala,
+        'is_staff_pj' => $is_ppi_role && !$is_kepala,
+        'biro_id' => $biro_id,
+        'nama_biro' => $nama_biro,
+        'jabatan' => $jabatan ?: ($is_kepala ? 'Kepala PPI' : ($nama_biro ? 'PJ Biro ' . $nama_biro : 'Staff PPI'))
+    ];
+}
+
 
 

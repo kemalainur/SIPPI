@@ -30,7 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'nokta' => $user['nokta'],
             'nama' => $user['nama'],
             'role_id' => $user['role_id'],
-            'nama_role' => $user['nama_role']
+            'nama_role' => $user['nama_role'],
+            'biro_id' => $user['biro_id'] ?? null,
+            'jabatan' => $user['jabatan'] ?? null
         ];
         if (isset($_SESSION['login_attempts'][$nokta])) {
             unset($_SESSION['login_attempts'][$nokta]);

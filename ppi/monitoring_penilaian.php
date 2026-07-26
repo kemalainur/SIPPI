@@ -31,21 +31,38 @@ if (!$active) {
 
 $bulan = $active['bulan'];
 $tahun = $active['tahun'];
+$me_nokta = $_SESSION['user']['nokta'];
+$ppi_info = get_user_ppi_info($me_nokta, $active_p['id_kepengurusan']);
 
-$stmtMonitoring = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role,
-                                 (SELECT COUNT(DISTINCT dinilai_nokta) FROM tabel_penilaian WHERE penilai_nokta = p.nokta AND bulan = ? AND tahun = ?) as total_dinilai
-                                 FROM tabel_pengurus p
-                                 JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
-                                 JOIN tabel_role r ON j.role_id = r.id_role
-                                 WHERE r.nama_role != 'Super Admin'
-                                 ORDER BY p.nama ASC");
-$stmtMonitoring->execute([$bulan, $tahun, $active_p['id_kepengurusan']]);
+if ($ppi_info['is_staff_pj'] && $ppi_info['biro_id']) {
+    $stmtMonitoring = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role, b.nama_biro,
+                                     (SELECT COUNT(DISTINCT dinilai_nokta) FROM tabel_penilaian WHERE penilai_nokta = p.nokta AND bulan = ? AND tahun = ?) as total_dinilai
+                                     FROM tabel_pengurus p
+                                     JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                     JOIN tabel_role r ON j.role_id = r.id_role
+                                     LEFT JOIN tabel_biro b ON j.biro_id = b.id_biro
+                                     WHERE r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') AND (p.angkatan IS NULL OR p.angkatan != '2023') AND j.biro_id = ?
+                                     ORDER BY p.nama ASC");
+    $stmtMonitoring->execute([$bulan, $tahun, $active_p['id_kepengurusan'], $ppi_info['biro_id']]);
+} else {
+    $stmtMonitoring = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role, b.nama_biro,
+                                     (SELECT COUNT(DISTINCT dinilai_nokta) FROM tabel_penilaian WHERE penilai_nokta = p.nokta AND bulan = ? AND tahun = ?) as total_dinilai
+                                     FROM tabel_pengurus p
+                                     JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                     JOIN tabel_role r ON j.role_id = r.id_role
+                                     LEFT JOIN tabel_biro b ON j.biro_id = b.id_biro
+                                     WHERE r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') AND (p.angkatan IS NULL OR p.angkatan != '2023')
+                                     ORDER BY p.nama ASC");
+    $stmtMonitoring->execute([$bulan, $tahun, $active_p['id_kepengurusan']]);
+}
 $monitoring = $stmtMonitoring->fetchAll();
 
 $stmtRatees = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan j 
+                             JOIN tabel_pengurus p ON j.nokta = p.nokta
                              JOIN tabel_role r ON j.role_id = r.id_role
                              WHERE j.kepengurusan_id = ? 
-                             AND r.nama_role != 'Super Admin'");
+                             AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas')
+                             AND (p.angkatan IS NULL OR p.angkatan != '2023')");
 $stmtRatees->execute([$active_p['id_kepengurusan']]);
 $countTotalPengurus = (int)$stmtRatees->fetchColumn();
 
@@ -58,6 +75,46 @@ $monitoring = array_map(function($m) use ($countTotalPengurus) {
 $completed_count = count(array_filter($monitoring, fn($m) => $m['is_done']));
 $pending_count = count($monitoring) - $completed_count;
 
+// Fetch Biro Breakdown for Kepala PPI
+$biro_stats = [];
+if ($ppi_info['is_kepala']) {
+    $stmtBiros = $pdo->prepare("SELECT id_biro, nama_biro FROM tabel_biro WHERE kepengurusan_id = ? ORDER BY nama_biro ASC");
+    $stmtBiros->execute([$active_p['id_kepengurusan']]);
+    $all_biros = $stmtBiros->fetchAll();
+
+    foreach ($all_biros as $b) {
+        $stmtTotB = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan j JOIN tabel_pengurus p ON j.nokta = p.nokta JOIN tabel_role r ON j.role_id = r.id_role WHERE j.kepengurusan_id = ? AND j.biro_id = ? AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') AND (p.angkatan IS NULL OR p.angkatan != '2023')");
+        $stmtTotB->execute([$active_p['id_kepengurusan'], $b['id_biro']]);
+        $tot_pengurus_biro = (int)$stmtTotB->fetchColumn();
+
+        $stmtEvalB = $pdo->prepare("SELECT COUNT(DISTINCT tp.dinilai_nokta) 
+                                    FROM tabel_penilaian tp
+                                    JOIN tabel_pengurus p ON tp.dinilai_nokta = p.nokta
+                                    JOIN tabel_pengurus_jabatan j ON tp.dinilai_nokta = j.nokta AND j.kepengurusan_id = ?
+                                    JOIN tabel_role r ON j.role_id = r.id_role
+                                    WHERE tp.bulan = ? AND tp.tahun = ? AND j.biro_id = ? AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') AND (p.angkatan IS NULL OR p.angkatan != '2023')");
+        $stmtEvalB->execute([$active_p['id_kepengurusan'], $bulan, $tahun, $b['id_biro']]);
+        $eval_biro = (int)$stmtEvalB->fetchColumn();
+
+        $uneval_biro = max(0, $tot_pengurus_biro - $eval_biro);
+        $pct_biro = $tot_pengurus_biro > 0 ? round(($eval_biro / $tot_pengurus_biro) * 100, 1) : 100;
+
+        $stmtPJ = $pdo->prepare("SELECT p.nama, j.jabatan FROM tabel_pengurus_jabatan j JOIN tabel_pengurus p ON j.nokta = p.nokta WHERE j.kepengurusan_id = ? AND j.biro_id = ? AND j.role_id = 4 LIMIT 1");
+        $stmtPJ->execute([$active_p['id_kepengurusan'], $b['id_biro']]);
+        $pj_data = $stmtPJ->fetch();
+
+        $biro_stats[] = [
+            'id_biro' => $b['id_biro'],
+            'nama_biro' => $b['nama_biro'],
+            'pj_nama' => $pj_data['nama'] ?? 'Staff PPI',
+            'tot_pengurus' => $tot_pengurus_biro,
+            'sudah_dinilai' => $eval_biro,
+            'belum_dinilai' => $uneval_biro,
+            'persen' => $pct_biro
+        ];
+    }
+}
+
 $title = "Monitoring Penilaian";
 include '../layout/header.php';
 include '../layout/sidebar.php';
@@ -67,10 +124,43 @@ include '../layout/sidebar.php';
     <div class="d-flex justify-content-between align-items-center mb-4 g-3 flex-wrap">
         <div>
             <h4 class="fw-800 text-brand-red mb-1">Monitoring Partisipasi Penilaian</h4>
-            <p class="text-muted small mb-0">Memantau progres penilaian sejawat periode <span class="fw-800 text-dark"><?= $bulan ?>/<?= $tahun ?></span></p>
+            <p class="text-muted small mb-0">Memantau progres penilaian periode <span class="fw-800 text-dark"><?= $bulan ?>/<?= $tahun ?></span> (<?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> - <?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</p>
         </div>
     </div>
 
+    <?php if ($biro_stats): ?>
+        <!-- Monitoring Biro khusus Kepala PPI -->
+        <div class="mb-4">
+            <h6 class="fw-800 text-dark mb-3"><i class="fas fa-chart-pie text-danger me-2"></i>Progres Penilaian Per Biro (PJ Biro)</h6>
+            <div class="row g-3">
+                <?php foreach($biro_stats as $bs): ?>
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+                            <div class="card-body p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-danger-soft text-danger fw-bold px-3 py-1 rounded-pill">Biro <?= htmlspecialchars($bs['nama_biro']) ?></span>
+                                    <span class="fw-800 text-dark" style="font-size: 1.1rem;"><?= $bs['persen'] ?>%</span>
+                                </div>
+                                <div class="small text-muted mb-3"><i class="fas fa-user-shield me-1"></i> PJ: <strong><?= htmlspecialchars($bs['pj_nama']) ?></strong></div>
+                                
+                                <div class="progress mb-3" style="height: 8px; border-radius: 4px;">
+                                    <div class="progress-bar bg-danger" role="progressbar" style="width: <?= $bs['persen'] ?>%"></div>
+                                </div>
+
+                                <div class="d-flex justify-content-between small text-muted">
+                                    <span>Total: <strong><?= $bs['tot_pengurus'] ?></strong></span>
+                                    <span class="text-success">Sudah: <strong><?= $bs['sudah_dinilai'] ?></strong></span>
+                                    <span class="text-danger">Belum: <strong><?= $bs['belum_dinilai'] ?></strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if (($active['mode_penilaian'] ?? 'PPI') === 'Peer Assessment'): ?>
     <div class="row g-3 mb-4">
         <div class="col-md-4">
             <div class="card border-0 shadow-sm rounded-4 bg-white">
@@ -112,13 +202,6 @@ include '../layout/sidebar.php';
             </div>
         </div>
     </div>
-
-    <?php if (isset($_SESSION['success'])): ?>
-        <div class="alert alert-success border-0 shadow-sm rounded-4 py-3 d-flex align-items-center mb-4">
-            <i class="fas fa-check-circle me-3 fa-lg text-brand-green"></i>
-            <div class="fw-600"><?= $_SESSION['success']; unset($_SESSION['success']); ?></div>
-        </div>
-    <?php endif; ?>
 
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
         <div class="card-body p-0">
@@ -179,6 +262,7 @@ include '../layout/sidebar.php';
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <div class="mb-4 mt-5">
         <h4 class="fw-800 text-brand-red mb-1">Hasil Kalkulasi KPI</h4>
@@ -206,6 +290,8 @@ include '../layout/sidebar.php';
                                                      JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND n.kepengurusan_id = j.kepengurusan_id
                                                      JOIN tabel_role r ON j.role_id = r.id_role
                                                      WHERE n.bulan = ? AND n.tahun = ? AND n.kepengurusan_id = ?
+                                                     AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas')
+                                                     AND (p.angkatan IS NULL OR p.angkatan != '2023')
                                                      ORDER BY n.nilai_kpi_total DESC");
                         $stmtResults->execute([$bulan, $tahun, $active_p['id_kepengurusan']]);
                         $results = $stmtResults->fetchAll();

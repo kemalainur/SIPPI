@@ -18,7 +18,7 @@ if ($is_admin_view) {
     try {
         $stmtPengurus = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan j 
                                      JOIN tabel_pengurus p ON j.nokta = p.nokta 
-                                     WHERE j.kepengurusan_id = ? AND p.angkatan != '2023'");
+                                     WHERE j.kepengurusan_id = ? AND (p.angkatan IS NULL OR p.angkatan != '2023')");
         $stmtPengurus->execute([$active_id]);
         $totalPengurus = $stmtPengurus->fetchColumn();
 
@@ -105,6 +105,7 @@ if ($periodeAktif && $role_name != 'Super Admin') {
                                      JOIN tabel_konfigurasi_penilaian kp ON p.nokta = kp.nokta AND kp.kepengurusan_id = ? AND kp.bulan = ? AND kp.tahun = ? AND kp.tipe = 'dinilai'
                                      LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
                                      WHERE r.nama_role NOT IN ('PPI', 'Koorkam', 'Super Admin') 
+                                     AND (p.angkatan IS NULL OR p.angkatan != '2023')
                                      AND p.nokta != ?
                                      AND tp.id_penilaian IS NULL");
             $stmtRem->execute([$active_id, $active_id, $periodeAktif['bulan'], $periodeAktif['tahun'], $my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun'], $my_nokta]);
@@ -115,6 +116,7 @@ if ($periodeAktif && $role_name != 'Super Admin') {
                                      JOIN tabel_role r ON j.role_id = r.id_role
                                      LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
                                      WHERE r.nama_role NOT IN ('PPI', 'Koorkam', 'Super Admin') 
+                                     AND (p.angkatan IS NULL OR p.angkatan != '2023')
                                      AND p.nokta != ?
                                      AND tp.id_penilaian IS NULL");
             $stmtRem->execute([$active_id, $my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun'], $my_nokta]);
@@ -207,6 +209,77 @@ try {
     $kasData = [0];
 }
 
+$ppi_info = get_user_ppi_info($my_nokta, $active_id);
+
+// Kepala PPI Dashboard Data
+$kepala_ppi_dashboard = null;
+if ($ppi_info['is_kepala'] && $periodeAktif) {
+    $kepala_ppi_dashboard = [];
+    $stmtBiros = $pdo->prepare("SELECT id_biro, nama_biro FROM tabel_biro WHERE kepengurusan_id = ? ORDER BY nama_biro ASC");
+    $stmtBiros->execute([$active_id]);
+    $all_biros = $stmtBiros->fetchAll();
+
+    foreach ($all_biros as $b) {
+        $stmtTotB = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan j JOIN tabel_pengurus p ON j.nokta = p.nokta JOIN tabel_role r ON j.role_id = r.id_role WHERE j.kepengurusan_id = ? AND j.biro_id = ? AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') AND (p.angkatan IS NULL OR p.angkatan != '2023')");
+        $stmtTotB->execute([$active_id, $b['id_biro']]);
+        $tot_pengurus_biro = (int)$stmtTotB->fetchColumn();
+
+        $stmtEvalB = $pdo->prepare("SELECT COUNT(DISTINCT tp.dinilai_nokta) 
+                                    FROM tabel_penilaian tp
+                                    JOIN tabel_pengurus p ON tp.dinilai_nokta = p.nokta
+                                    JOIN tabel_pengurus_jabatan j ON tp.dinilai_nokta = j.nokta AND j.kepengurusan_id = ?
+                                    JOIN tabel_role r ON j.role_id = r.id_role
+                                    WHERE tp.bulan = ? AND tp.tahun = ? AND j.biro_id = ? AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') AND (p.angkatan IS NULL OR p.angkatan != '2023')");
+        $stmtEvalB->execute([$active_id, $periodeAktif['bulan'], $periodeAktif['tahun'], $b['id_biro']]);
+        $eval_biro = (int)$stmtEvalB->fetchColumn();
+
+        $uneval_biro = max(0, $tot_pengurus_biro - $eval_biro);
+        $pct_biro = $tot_pengurus_biro > 0 ? round(($eval_biro / $tot_pengurus_biro) * 100, 1) : 100;
+
+        $stmtPJ = $pdo->prepare("SELECT p.nama, j.jabatan FROM tabel_pengurus_jabatan j JOIN tabel_pengurus p ON j.nokta = p.nokta WHERE j.kepengurusan_id = ? AND j.biro_id = ? AND j.role_id = 4 LIMIT 1");
+        $stmtPJ->execute([$active_id, $b['id_biro']]);
+        $pj_data = $stmtPJ->fetch();
+
+        $kepala_ppi_dashboard[] = [
+            'id_biro' => $b['id_biro'],
+            'nama_biro' => $b['nama_biro'],
+            'pj_nama' => $pj_data['nama'] ?? 'Staff PPI',
+            'tot_pengurus' => $tot_pengurus_biro,
+            'sudah_dinilai' => $eval_biro,
+            'belum_dinilai' => $uneval_biro,
+            'persen' => $pct_biro
+        ];
+    }
+}
+
+// Staff PPI (PJ Biro) Dashboard Data
+$staff_ppi_dashboard = null;
+if ($ppi_info['is_staff_pj'] && $ppi_info['biro_id'] && $periodeAktif) {
+    $biro_id = $ppi_info['biro_id'];
+    
+    $stmtBiroMembers = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan,
+                                       (SELECT COUNT(*) FROM tabel_penilaian tp WHERE tp.dinilai_nokta = p.nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?) as is_rated_by_me
+                                       FROM tabel_pengurus p
+                                       JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                       JOIN tabel_role r ON j.role_id = r.id_role
+                                       WHERE j.biro_id = ? AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') AND (p.angkatan IS NULL OR p.angkatan != '2023') AND p.nokta != ?
+                                       ORDER BY p.nama ASC");
+    $stmtBiroMembers->execute([$my_nokta, $periodeAktif['bulan'], $periodeAktif['tahun'], $active_id, $biro_id, $my_nokta]);
+    $biro_members = $stmtBiroMembers->fetchAll();
+
+    $tot_biro_members = count($biro_members);
+    $rated_count = count(array_filter($biro_members, fn($m) => $m['is_rated_by_me'] > 0));
+    $unrated_count = $tot_biro_members - $rated_count;
+
+    $staff_ppi_dashboard = [
+        'nama_biro' => $ppi_info['nama_biro'],
+        'members' => $biro_members,
+        'total' => $tot_biro_members,
+        'sudah' => $rated_count,
+        'belum' => $unrated_count
+    ];
+}
+
 $title = "Dashboard Utama";
 include '../layout/header.php';
 include '../layout/sidebar.php';
@@ -239,6 +312,110 @@ else
             </div>
         </div>
     </div>
+
+    <?php if ($kepala_ppi_dashboard): ?>
+        <!-- Dashboard Monitoring Kepala PPI -->
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-white">
+            <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="mb-0 fw-800 text-dark">
+                    <i class="fas fa-shield-alt text-danger me-2"></i> Monitoring Dashboard Kepala PPI
+                </h6>
+                <div>
+                    <span class="badge bg-danger text-white rounded-pill px-3 py-1 fw-bold me-1">
+                        Mode: <?= htmlspecialchars($periodeAktif['mode_penilaian'] ?? 'PPI') ?>
+                    </span>
+                    <span class="badge bg-dark text-white rounded-pill px-3 py-1 fw-bold">
+                        Periode: <?= htmlspecialchars($periodeAktif['jenis_periode'] ?? 'Bulanan') ?> (<?= $periodeAktif['bulan'] ?>/<?= $periodeAktif['tahun'] ?>)
+                    </span>
+                </div>
+            </div>
+            <div class="card-body p-4 pt-2">
+                <div class="row g-3">
+                    <?php foreach ($kepala_ppi_dashboard as $kpd): ?>
+                        <div class="col-md-4">
+                            <div class="p-3 rounded-4 bg-slate-50 border border-light">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-800 text-dark">Biro <?= htmlspecialchars($kpd['nama_biro']) ?></span>
+                                    <span class="badge bg-danger text-white fw-bold"><?= $kpd['persen'] ?>%</span>
+                                </div>
+                                <div class="small text-muted mb-2"><i class="fas fa-user-shield me-1"></i> PJ: <strong><?= htmlspecialchars($kpd['pj_nama']) ?></strong></div>
+                                <div class="progress mb-3" style="height: 6px;">
+                                    <div class="progress-bar bg-danger" style="width: <?= $kpd['persen'] ?>%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between small text-muted">
+                                    <span>Total: <strong><?= $kpd['tot_pengurus'] ?></strong></span>
+                                    <span class="text-success">Sudah: <strong><?= $kpd['sudah_dinilai'] ?></strong></span>
+                                    <span class="text-danger">Belum: <strong><?= $kpd['belum_dinilai'] ?></strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <div class="mt-3 text-end">
+                    <a href="<?= base_url('ppi/monitoring_penilaian.php') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold">
+                        <i class="fas fa-eye me-1"></i> Detail Monitoring
+                    </a>
+                    <a href="<?= base_url('ppi/penilaian_input.php') ?>" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold ms-1">
+                        <i class="fas fa-edit me-1"></i> Bantu Penilaian
+                    </a>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($staff_ppi_dashboard): 
+        $pct_staff = $staff_ppi_dashboard['total'] > 0 ? round(($staff_ppi_dashboard['sudah'] / $staff_ppi_dashboard['total']) * 100, 1) : 100;
+    ?>
+        <!-- Dashboard Staff PPI (PJ Biro) - Information Summary Only -->
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-white">
+            <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="mb-0 fw-800 text-dark">
+                    <i class="fas fa-user-shield text-danger me-2"></i> Ringkasan Penilaian PJ Biro <?= htmlspecialchars($staff_ppi_dashboard['nama_biro']) ?>
+                </h6>
+                <span class="badge bg-primary text-white rounded-pill px-3 py-1 fw-bold">
+                    Tanggung Jawab: Biro <?= htmlspecialchars($staff_ppi_dashboard['nama_biro']) ?>
+                </span>
+            </div>
+            <div class="card-body p-4 pt-2">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <div class="p-3 bg-light rounded-4 text-center border border-light">
+                            <div class="text-muted small fw-600">Harus Dinilai</div>
+                            <div class="fw-800 text-dark h3 mb-0"><?= $staff_ppi_dashboard['total'] ?> <span class="fs-6 text-muted fw-bold">Pengurus</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-brand-green-soft rounded-4 text-center border border-light">
+                            <div class="text-brand-green small fw-600">Sudah Dinilai</div>
+                            <div class="fw-800 text-brand-green h3 mb-0"><?= $staff_ppi_dashboard['sudah'] ?> <span class="fs-6 text-brand-green fw-bold">Pengurus</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-danger-soft rounded-4 text-center border border-light">
+                            <div class="text-danger small fw-600">Belum Dinilai</div>
+                            <div class="fw-800 text-danger h3 mb-0"><?= $staff_ppi_dashboard['belum'] ?> <span class="fs-6 text-danger fw-bold">Pengurus</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-3 rounded-4 bg-slate-50 border border-light mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-800 text-dark">Progres Penyelesaian Penilaian Biro <?= htmlspecialchars($staff_ppi_dashboard['nama_biro']) ?></span>
+                        <span class="badge bg-danger text-white fw-bold fs-6"><?= $pct_staff ?>%</span>
+                    </div>
+                    <div class="progress" style="height: 10px; border-radius: 5px;">
+                        <div class="progress-bar bg-danger" role="progressbar" style="width: <?= $pct_staff ?>%"></div>
+                    </div>
+                </div>
+
+                <div class="text-end">
+                    <a href="<?= base_url('ppi/penilaian_input.php') ?>" class="btn btn-danger rounded-pill px-4 fw-800 shadow-sm">
+                        <i class="fas fa-edit me-1"></i> Buka Modul Beri Penilaian <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <?php if ($is_admin_view): ?>
         <!-- KPI Overview Cards -->
@@ -439,7 +616,7 @@ else
                         </div>
                     </div>
                 </div>
-            <?php else: ?>
+            <?php elseif ($periodeAktif && ($periodeAktif['mode_penilaian'] ?? 'PPI') === 'Peer Assessment'): ?>
                 <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 <?= $remAssess > 0 ? 'border-amber border-2' : '' ?> h-100"
                     style="background: linear-gradient(135deg, #fff 0%, #fff9f0 100%);">
                     <div class="card-body p-4">

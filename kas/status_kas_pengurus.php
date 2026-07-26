@@ -58,6 +58,7 @@ $query = "SELECT p.nokta, p.nama, j.jabatan, k.status_bayar, k.tanggal_bayar, k.
           JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
           LEFT JOIN tabel_kas_pengurus k ON p.nokta = k.nokta_pengurus 
           AND k.bulan = ? AND k.tahun = ?
+          WHERE (p.angkatan IS NULL OR p.angkatan != '2023')
           ORDER BY p.nokta ASC";
 $stmt = $pdo->prepare($query);
 $stmt->execute([$active_p['id_kepengurusan'], $bulan, $tahun]);

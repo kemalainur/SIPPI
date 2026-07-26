@@ -54,19 +54,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $message = "Kehadiran berhasil disimpan!";
 }
 
-$stmtMembers = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, k.status_hadir 
+$stmtMembers = $pdo->prepare("SELECT p.nokta, p.nama, p.angkatan, j.jabatan, b.nama_biro, k.status_hadir 
                             FROM tabel_pengurus p 
                             JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                            LEFT JOIN tabel_biro b ON j.biro_id = b.id_biro
                             LEFT JOIN tabel_kehadiran k ON p.nokta = k.nokta_pengurus AND k.kegiatan_id = ?
-                            ORDER BY p.nokta ASC");
+                            WHERE (p.angkatan IS NULL OR p.angkatan != '2023')
+                            ORDER BY p.nama ASC");
 $stmtMembers->execute([$kegiatan['kepengurusan_id'], $id_kegiatan]);
 $members = $stmtMembers->fetchAll();
+
+$biros = array_values(array_filter(array_unique(array_column($members, 'nama_biro'))));
+sort($biros);
+$angkatans = array_values(array_filter(array_unique(array_column($members, 'angkatan'))));
+sort($angkatans);
 ?>
 
 <div id="content" class="fade-in">
     <div class="mb-4 d-flex justify-content-between align-items-center g-3 flex-wrap">
         <div>
-            <h4 class="fw-800 text-brand-red mb-1">Presensi: <?= $kegiatan['nama_kegiatan'] ?></h4>
+            <h4 class="fw-800 text-brand-red mb-1">Presensi: <?= htmlspecialchars($kegiatan['nama_kegiatan']) ?></h4>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb small mb-0">
                     <li class="breadcrumb-item"><a href="bulan_penilaian.php" class="text-primary text-decoration-none fw-600">Bulan Penilaian</a></li>
@@ -95,10 +102,42 @@ $members = $stmtMembers->fetchAll();
 
     <form method="POST">
         <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
-            <div class="card-header bg-white border-0 py-4 px-4 d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 fw-800 text-dark">Daftar Kehadiran Pengurus</h6>
+            <div class="card-header bg-white border-0 py-4 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h6 class="mb-0 fw-800 text-dark">Daftar Kehadiran Pengurus</h6>
+                    <small class="text-muted">Presensi otomatis ALPA jika belum diisi.</small>
+                </div>
                 <span class="badge bg-slate-100 text-slate-600 px-3 py-2 rounded-pill fw-bold small">Total: <?= count($members) ?> Orang</span>
             </div>
+
+            <!-- Search & Filter Controls -->
+            <div class="p-3 bg-slate-50 border-top border-bottom">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-5">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                            <input type="text" id="searchNama" class="form-control border-start-0 ps-0" placeholder="Cari nama atau NOKTA pengurus...">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="filterBiro" class="form-select form-select-sm fw-600 text-muted">
+                            <option value="">-- Semua Biro --</option>
+                            <?php foreach($biros as $b): ?>
+                                <option value="<?= htmlspecialchars($b) ?>">Biro <?= htmlspecialchars($b) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <select id="filterAngkatan" class="form-select form-select-sm fw-600 text-muted">
+                            <option value="">-- Semua Angkatan --</option>
+                            <?php foreach($angkatans as $ang): ?>
+                                <option value="<?= htmlspecialchars($ang) ?>">Angkatan <?= htmlspecialchars($ang) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -108,17 +147,29 @@ $members = $stmtMembers->fetchAll();
                                 <th class="text-center" width="350">Status Kehadiran</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="memberTableBody">
                             <?php foreach($members as $m): ?>
-                            <tr class="modern-row">
+                            <tr class="modern-row member-row" 
+                                data-nama="<?= htmlspecialchars(strtolower($m['nama'])) ?>" 
+                                data-nokta="<?= htmlspecialchars(strtolower($m['nokta'])) ?>"
+                                data-biro="<?= htmlspecialchars($m['nama_biro'] ?? '') ?>"
+                                data-angkatan="<?= htmlspecialchars($m['angkatan'] ?? '') ?>">
                                 <td class="ps-4">
                                     <div class="d-flex align-items-center py-2">
                                         <div class="avatar-sm me-3 bg-primary-soft text-primary rounded-circle d-flex align-items-center justify-content-center fw-800">
                                             <?= substr($m['nama'] ?? '-', 0, 1) ?>
                                         </div>
                                         <div>
-                                            <div class="fw-800 text-dark mb-0"><?= $m['nama'] ?></div>
-                                            <div class="text-muted small ls-1"><?= $m['nokta'] ?></div>
+                                            <div class="fw-800 text-dark mb-0"><?= htmlspecialchars($m['nama']) ?></div>
+                                            <div class="text-muted small ls-1">
+                                                <span><?= htmlspecialchars($m['nokta']) ?></span>
+                                                <?php if(!empty($m['nama_biro'])): ?>
+                                                    <span class="badge bg-slate-100 text-slate-600 ms-1 fw-bold"><?= htmlspecialchars($m['nama_biro']) ?></span>
+                                                <?php endif; ?>
+                                                <?php if(!empty($m['angkatan'])): ?>
+                                                    <span class="badge bg-primary-soft text-primary ms-1 fw-bold">Angk. <?= htmlspecialchars($m['angkatan']) ?></span>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -134,11 +185,6 @@ $members = $stmtMembers->fetchAll();
                                                    id="i_<?= $m['nokta'] ?>" value="izin" 
                                                    <?= $m['status_hadir'] == 'izin' ? 'checked' : '' ?> <?= $is_closed ? 'disabled' : '' ?>>
                                             <label class="btn btn-outline-info btn-sm px-3 fw-800 border-0" for="i_<?= $m['nokta'] ?>">IZIN</label>
-
-                                            <input type="radio" class="btn-check" name="status[<?= $m['nokta'] ?>]" 
-                                                   id="l_<?= $m['nokta'] ?>" value="telat" 
-                                                   <?= $m['status_hadir'] == 'telat' ? 'checked' : '' ?> <?= $is_closed ? 'disabled' : '' ?>>
-                                            <label class="btn btn-outline-warning btn-sm px-3 fw-800 border-0" for="l_<?= $m['nokta'] ?>">TELAT</label>
                     
                                             <input type="radio" class="btn-check" name="status[<?= $m['nokta'] ?>]" 
                                                    id="t_<?= $m['nokta'] ?>" value="alpa" 
@@ -167,6 +213,42 @@ $members = $stmtMembers->fetchAll();
         </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const searchNama = document.getElementById('searchNama');
+    const filterBiro = document.getElementById('filterBiro');
+    const filterAngkatan = document.getElementById('filterAngkatan');
+    const rows = document.querySelectorAll('.member-row');
+
+    function filterRows() {
+        const query = searchNama.value.toLowerCase().trim();
+        const biroVal = filterBiro.value;
+        const angkatanVal = filterAngkatan.value;
+
+        rows.forEach(row => {
+            const nama = row.getAttribute('data-nama') || '';
+            const nokta = row.getAttribute('data-nokta') || '';
+            const biro = row.getAttribute('data-biro') || '';
+            const angkatan = row.getAttribute('data-angkatan') || '';
+
+            const matchSearch = !query || nama.includes(query) || nokta.includes(query);
+            const matchBiro = !biroVal || biro === biroVal;
+            const matchAngkatan = !angkatanVal || angkatan === angkatanVal;
+
+            if (matchSearch && matchBiro && matchAngkatan) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    if (searchNama) searchNama.addEventListener('input', filterRows);
+    if (filterBiro) filterBiro.addEventListener('change', filterRows);
+    if (filterAngkatan) filterAngkatan.addEventListener('change', filterRows);
+});
+</script>
 
 <style>
 .bg-slate-50 { background-color: #f8fafc; }

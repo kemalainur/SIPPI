@@ -24,70 +24,148 @@ if (!$active) {
 $bulan = $active['bulan'];
 $tahun = $active['tahun'];
 $me = $_SESSION['user']['nokta'];
+$ppi_info = get_user_ppi_info($me, $active_p['id_kepengurusan']);
 
-// Check if user is a penilai
-$stmtCheckPenilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
-                                   WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND tipe = 'penilai'");
-$stmtCheckPenilai->execute([$active_p['id_kepengurusan'], $bulan, $tahun]);
-$has_penilai_config = ($stmtCheckPenilai->fetchColumn() > 0);
+$user_role_name = $_SESSION['user']['nama_role'] ?? '';
+$is_pjnas = in_array($user_role_name, ['PJnas', 'PJNas']);
 
-$is_allowed_to_assess = true;
-if ($has_penilai_config) {
-    $stmtIsPenilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
-                                     WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND nokta = ? AND tipe = 'penilai'");
-    $stmtIsPenilai->execute([$active_p['id_kepengurusan'], $bulan, $tahun, $me]);
-    $is_allowed_to_assess = ($stmtIsPenilai->fetchColumn() > 0);
-}
-
-if (!$is_allowed_to_assess) {
+if ($ppi_info['is_2023'] || $is_pjnas) {
     $title = "Akses Penilaian Dibatasi";
     include '../layout/header.php';
     include '../layout/sidebar.php';
     echo '<div id="content" class="text-center mt-5">
             <i class="fas fa-user-slash fa-4x text-muted mb-3"></i>
-            <h4>Akses Penilaian Dinonaktifkan</h4>
-            <p class="text-muted small">Anda tidak diatur sebagai penilai pada periode penilaian bulan ini (' . $bulan . '/' . $tahun . ').</p>
-            <p class="text-muted small">Silakan hubungi PPI jika menurut Anda ini adalah kesalahan.</p>
+            <h4 class="fw-800">Akses Penilaian Dibatasi</h4>
+            <p class="text-muted small">Pengurus Angkatan 2023 dan Role PJnas tidak diikutsertakan pada sistem evaluasi penilaian ini.</p>
             <a href="' . base_url('dashboard/dashboard.php') . '" class="btn btn-primary rounded-pill px-4 mt-3">Kembali ke Dashboard</a>
           </div>';
     include '../layout/footer.php';
     exit;
 }
 
-function get_members_to_rate($pdo, $active_p_id, $me, $bulan, $tahun) {
-    $stmtCheckDinilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
-                                       WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND tipe = 'dinilai'");
-    $stmtCheckDinilai->execute([$active_p_id, $bulan, $tahun]);
-    $has_dinilai_config = ($stmtCheckDinilai->fetchColumn() > 0);
+$mode_penilaian = $active['mode_penilaian'] ?? 'PPI';
 
-    if ($has_dinilai_config) {
-        $stmt = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role 
-                               FROM tabel_pengurus p 
-                               JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
-                               JOIN tabel_role r ON j.role_id = r.id_role
-                               JOIN tabel_konfigurasi_penilaian kp ON p.nokta = kp.nokta AND kp.kepengurusan_id = ? AND kp.bulan = ? AND kp.tahun = ? AND kp.tipe = 'dinilai'
-                               LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
-                               WHERE r.nama_role != 'Super Admin' 
-                               AND p.nokta != ?
-                               AND tp.id_penilaian IS NULL
-                               ORDER BY p.nama ASC");
-        $stmt->execute([$active_p_id, $active_p_id, $bulan, $tahun, $me, $bulan, $tahun, $me]);
+if ($mode_penilaian === 'PPI') {
+    // Mode Penilaian PPI (Bulanan): Hanya Tim PPI (dan Super Admin) yang dapat menilai
+    if (!$ppi_info['is_ppi']) {
+        $title = "Akses Penilaian Dibatasi";
+        include '../layout/header.php';
+        include '../layout/sidebar.php';
+        echo '<div id="content" class="text-center mt-5">
+                <i class="fas fa-shield-alt fa-4x text-muted mb-3"></i>
+                <h4 class="fw-800">Mode Penilaian PPI (Bulanan)</h4>
+                <p class="text-muted small">Pada periode ini, penilaian dilakukan secara internal oleh TIM PPI.</p>
+                <p class="text-muted small">Menu Peer Assessment bagi pengurus umum akan aktif pada periode Triwulanan.</p>
+                <a href="' . base_url('dashboard/dashboard.php') . '" class="btn btn-primary rounded-pill px-4 mt-3">Kembali ke Dashboard</a>
+              </div>';
+        include '../layout/footer.php';
+        exit;
+    }
+} else {
+    // Mode Peer Assessment (Triwulanan)
+    $stmtCheckPenilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
+                                       WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND tipe = 'penilai'");
+    $stmtCheckPenilai->execute([$active_p['id_kepengurusan'], $bulan, $tahun]);
+    $has_penilai_config = ($stmtCheckPenilai->fetchColumn() > 0);
+
+    $is_allowed_to_assess = true;
+    if ($has_penilai_config) {
+        $stmtIsPenilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
+                                         WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND nokta = ? AND tipe = 'penilai'");
+        $stmtIsPenilai->execute([$active_p['id_kepengurusan'], $bulan, $tahun, $me]);
+        $is_allowed_to_assess = ($stmtIsPenilai->fetchColumn() > 0);
+    }
+
+    if (!$is_allowed_to_assess) {
+        $title = "Akses Penilaian Dibatasi";
+        include '../layout/header.php';
+        include '../layout/sidebar.php';
+        echo '<div id="content" class="text-center mt-5">
+                <i class="fas fa-user-slash fa-4x text-muted mb-3"></i>
+                <h4>Akses Penilaian Dinonaktifkan</h4>
+                <p class="text-muted small">Anda tidak diatur sebagai penilai pada periode penilaian bulan ini (' . $bulan . '/' . $tahun . ').</p>
+                <p class="text-muted small">Silakan hubungi PPI jika menurut Anda ini adalah kesalahan.</p>
+                <a href="' . base_url('dashboard/dashboard.php') . '" class="btn btn-primary rounded-pill px-4 mt-3">Kembali ke Dashboard</a>
+              </div>';
+        include '../layout/footer.php';
+        exit;
+    }
+}
+
+function get_members_to_rate($pdo, $active_p_id, $me, $bulan, $tahun, $active, $ppi_info) {
+    $mode = $active['mode_penilaian'] ?? 'PPI';
+
+    if ($mode === 'PPI') {
+        if ($ppi_info['is_staff_pj'] && $ppi_info['biro_id']) {
+            // Staff PPI (PJ Biro): Only see & evaluate pengurus in their assigned biro (exclude 2023 & Super Admin/PJnas)
+            $stmt = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role, b.nama_biro 
+                                   FROM tabel_pengurus p 
+                                   JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                   JOIN tabel_role r ON j.role_id = r.id_role
+                                   LEFT JOIN tabel_biro b ON j.biro_id = b.id_biro
+                                   LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
+                                   WHERE r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') 
+                                   AND (p.angkatan IS NULL OR p.angkatan != '2023')
+                                   AND p.nokta != ?
+                                   AND j.biro_id = ?
+                                   AND tp.id_penilaian IS NULL
+                                   ORDER BY p.nama ASC");
+            $stmt->execute([$active_p_id, $me, $bulan, $tahun, $me, $ppi_info['biro_id']]);
+        } else {
+            // Kepala PPI or Super Admin: Can view & evaluate all pengurus across all biros (exclude 2023 & Super Admin/PJnas)
+            $stmt = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role, b.nama_biro 
+                                   FROM tabel_pengurus p 
+                                   JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                   JOIN tabel_role r ON j.role_id = r.id_role
+                                   LEFT JOIN tabel_biro b ON j.biro_id = b.id_biro
+                                   LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
+                                   WHERE r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') 
+                                   AND (p.angkatan IS NULL OR p.angkatan != '2023')
+                                   AND p.nokta != ?
+                                   AND tp.id_penilaian IS NULL
+                                   ORDER BY b.nama_biro ASC, p.nama ASC");
+            $stmt->execute([$active_p_id, $me, $bulan, $tahun, $me]);
+        }
     } else {
-        $stmt = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role 
-                               FROM tabel_pengurus p 
-                               JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
-                               JOIN tabel_role r ON j.role_id = r.id_role
-                               LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
-                               WHERE r.nama_role != 'Super Admin' 
-                               AND p.nokta != ?
-                               AND tp.id_penilaian IS NULL
-                               ORDER BY p.nama ASC");
-        $stmt->execute([$active_p_id, $me, $bulan, $tahun, $me]);
+        // Peer Assessment Mode
+        $stmtCheckDinilai = $pdo->prepare("SELECT COUNT(*) FROM tabel_konfigurasi_penilaian 
+                                           WHERE kepengurusan_id = ? AND bulan = ? AND tahun = ? AND tipe = 'dinilai'");
+        $stmtCheckDinilai->execute([$active_p_id, $bulan, $tahun]);
+        $has_dinilai_config = ($stmtCheckDinilai->fetchColumn() > 0);
+
+        if ($has_dinilai_config) {
+            $stmt = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role, b.nama_biro 
+                                   FROM tabel_pengurus p 
+                                   JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                   JOIN tabel_role r ON j.role_id = r.id_role
+                                   LEFT JOIN tabel_biro b ON j.biro_id = b.id_biro
+                                   JOIN tabel_konfigurasi_penilaian kp ON p.nokta = kp.nokta AND kp.kepengurusan_id = ? AND kp.bulan = ? AND kp.tahun = ? AND kp.tipe = 'dinilai'
+                                   LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
+                                   WHERE r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') 
+                                   AND (p.angkatan IS NULL OR p.angkatan != '2023')
+                                   AND p.nokta != ?
+                                   AND tp.id_penilaian IS NULL
+                                   ORDER BY p.nama ASC");
+            $stmt->execute([$active_p_id, $active_p_id, $bulan, $tahun, $me, $bulan, $tahun, $me]);
+        } else {
+            $stmt = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan, r.nama_role, b.nama_biro 
+                                   FROM tabel_pengurus p 
+                                   JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                   JOIN tabel_role r ON j.role_id = r.id_role
+                                   LEFT JOIN tabel_biro b ON j.biro_id = b.id_biro
+                                   LEFT JOIN tabel_penilaian tp ON p.nokta = tp.dinilai_nokta AND tp.penilai_nokta = ? AND tp.bulan = ? AND tp.tahun = ?
+                                   WHERE r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') 
+                                   AND (p.angkatan IS NULL OR p.angkatan != '2023')
+                                   AND p.nokta != ?
+                                   AND tp.id_penilaian IS NULL
+                                   ORDER BY p.nama ASC");
+            $stmt->execute([$active_p_id, $me, $bulan, $tahun, $me]);
+        }
     }
     return $stmt->fetchAll();
 }
 
-$members = get_members_to_rate($pdo, $active_p['id_kepengurusan'], $me, $bulan, $tahun);
+$members = get_members_to_rate($pdo, $active_p['id_kepengurusan'], $me, $bulan, $tahun, $active, $ppi_info);
 
 $indicators = $pdo->query("SELECT * FROM tabel_indikator ORDER BY kategori, id_indikator ASC")->fetchAll();
 
@@ -112,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $message = "Penilaian untuk " . $_POST['nama_dinilai'] . " berhasil disimpan!";
     
-    $members = get_members_to_rate($pdo, $active_p['id_kepengurusan'], $me, $bulan, $tahun);
+    $members = get_members_to_rate($pdo, $active_p['id_kepengurusan'], $me, $bulan, $tahun, $active, $ppi_info);
 }
 ?>
 
@@ -120,8 +198,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="mb-4 d-flex justify-content-between align-items-center g-3 flex-wrap">
         <div>
             <h4 class="fw-800 text-brand-red mb-1">Evaluasi Rekan Pengurus</h4>
-            <div class="small text-muted">
-                Periode Penilaian: <span class="badge bg-primary px-2 rounded-pill"><?= $active['bulan'] ?>/<?= $active['tahun'] ?></span>
+            <div class="small text-muted d-flex align-items-center gap-2 flex-wrap mt-1">
+                <span>Periode: <span class="badge bg-primary px-2 rounded-pill"><?= $active['bulan'] ?>/<?= $active['tahun'] ?></span></span>
+                <span>Mode: <span class="badge bg-danger px-2 rounded-pill"><?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> (<?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</span></span>
+                <?php if ($mode_penilaian === 'PPI' && $ppi_info['is_staff_pj'] && $ppi_info['nama_biro']): ?>
+                    <span>Biro Tanggung Jawab: <span class="badge bg-dark px-2 rounded-pill"><?= htmlspecialchars($ppi_info['nama_biro']) ?></span></span>
+                <?php endif; ?>
             </div>
         </div>
         <div class="text-end">

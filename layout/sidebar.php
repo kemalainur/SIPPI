@@ -119,13 +119,11 @@ $role = $_SESSION['user']['nama_role'];
         </li>
         <?php endif; ?>
 
-        <?php if (has_permission('penilaian.create')): ?>
         <li class="<?= (strpos($_SERVER['PHP_SELF'], '/penilaian_input.php') !== false) ? 'active' : '' ?>">
             <a href="<?= base_url('ppi/penilaian_input.php') ?>">
                 <i class="fas fa-star-half-alt"></i> Beri Penilaian
             </a>
         </li>
-        <?php endif; ?>
 
         <?php if (has_permission('inventaris.view')): ?>
         <li class="<?= (strpos($_SERVER['PHP_SELF'], '/inventaris/') !== false) ? 'active' : '' ?>">
