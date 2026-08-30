@@ -36,8 +36,13 @@ $active_p = get_active_kepengurusan();
 
 $filter_period = $_GET['period'] ?? ($active_p['id_kepengurusan'] ?? '');
 $filter_angkatan = $_GET['angkatan'] ?? '';
+$filter_biro = $_GET['biro'] ?? '';
 
 $angkatans = $pdo->query("SELECT DISTINCT angkatan FROM tabel_pengurus WHERE angkatan IS NOT NULL ORDER BY angkatan DESC")->fetchAll(PDO::FETCH_COLUMN);
+
+$stmtBiros = $pdo->prepare("SELECT * FROM tabel_biro WHERE kepengurusan_id = ? ORDER BY nama_biro ASC");
+$stmtBiros->execute([$filter_period]);
+$biro_options = $stmtBiros->fetchAll();
 
 $message = '';
 if (isset($_SESSION['success'])) {
@@ -66,6 +71,15 @@ if ($filter_angkatan) {
     $params[] = $filter_angkatan;
 }
 
+if ($filter_biro !== '') {
+    if ($filter_biro === 'bph') {
+        $query .= " AND (j.biro_id IS NULL OR j.biro_id = 0)";
+    } else {
+        $query .= " AND j.biro_id = ?";
+        $params[] = $filter_biro;
+    }
+}
+
 $query .= " ORDER BY p.nokta ASC";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
@@ -87,11 +101,11 @@ $pengurus = $stmt->fetchAll();
     <div class="card border-0 shadow-sm mb-4 overflow-hidden">
         <div class="card-body p-4 bg-light-soft">
             <form method="GET" class="row g-3 align-items-end">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label small fw-800 text-muted text-uppercase ls-1">Periode Kepengurusan</label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-white border-end-0"><i class="fas fa-calendar-alt text-primary"></i></span>
-                        <select name="period" class="form-select border-start-0">
+                        <select name="period" class="form-select border-start-0" onchange="this.form.submit()">
                             <?php foreach($all_periods as $ap): ?>
                             <option value="<?= $ap['id_kepengurusan'] ?>" <?= $ap['id_kepengurusan'] == $filter_period ? 'selected' : '' ?>>
                                 <?= $ap['nama_periode'] ?> <?= $ap['status'] == 'aktif' ? '(Aktif)' : '' ?>
@@ -101,6 +115,21 @@ $pengurus = $stmt->fetchAll();
                     </div>
                 </div>
                 <div class="col-md-3">
+                    <label class="form-label small fw-800 text-muted text-uppercase ls-1">Struktur Biro</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white border-end-0"><i class="fas fa-sitemap text-primary"></i></span>
+                        <select name="biro" class="form-select border-start-0">
+                            <option value="">-- Semua Biro --</option>
+                            <option value="bph" <?= $filter_biro === 'bph' ? 'selected' : '' ?>>BPH / Tanpa Biro</option>
+                            <?php foreach($biro_options as $bo): ?>
+                            <option value="<?= $bo['id_biro'] ?>" <?= $filter_biro == $bo['id_biro'] ? 'selected' : '' ?>>
+                                Biro <?= htmlspecialchars($bo['nama_biro']) ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <label class="form-label small fw-800 text-muted text-uppercase ls-1">Angkatan</label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-white border-end-0"><i class="fas fa-graduation-cap text-primary"></i></span>
@@ -112,7 +141,7 @@ $pengurus = $stmt->fetchAll();
                         </select>
                     </div>
                 </div>
-                <div class="col-md-5 d-flex gap-2 justify-content-md-end">
+                <div class="col-md-4 d-flex gap-2 justify-content-md-end">
                     <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold">
                         <i class="fas fa-filter me-1"></i> Terapkan
                     </button>
@@ -199,20 +228,26 @@ $pengurus = $stmt->fetchAll();
                             </td>
                             <?php if (in_array($_SESSION['user']['nama_role'], ['Super Admin', 'PPI'])): ?>
                             <td>
-                                <span class="badge bg-light text-primary border px-2 py-1 fw-800" style="font-size: 0.75rem;">
-                                    <i class="fas fa-key me-1 opacity-50"></i><?= $p['password'] ?>
-                                </span>
+                                <?php if ($p['nama_role'] === 'Super Admin' && $_SESSION['user']['nama_role'] !== 'Super Admin'): ?>
+                                    <span class="badge bg-light text-muted border px-2 py-1 fw-bold" style="font-size: 0.75rem;" title="Password Super Admin Terlindungi">
+                                        <i class="fas fa-lock me-1 text-danger opacity-75"></i>••••••••
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge bg-light text-primary border px-2 py-1 fw-800" style="font-size: 0.75rem;">
+                                        <i class="fas fa-key me-1 opacity-50"></i><?= htmlspecialchars($p['password']) ?>
+                                    </span>
+                                <?php endif; ?>
                             </td>
                             <?php endif; ?>
                             <td class="text-center pe-4">
                                 <div class="d-flex justify-content-center gap-1">
                                     <?php 
-                                    $can_edit = !($_SESSION['user']['nama_role'] == 'Sekjend' && $p['nama_role'] == 'Super Admin');
+                                    $can_edit = !($p['nama_role'] === 'Super Admin' && $_SESSION['user']['nama_role'] !== 'Super Admin');
                                     if ($can_edit): 
                                     ?>
                                         <?php if (has_permission('pengurus.update')): ?>
                                         <a href="edit_pengurus.php?nokta=<?= $p['nokta'] ?>&context_period=<?= $filter_period ?>" 
-                                           class="btn btn-icon btn-light-soft text-primary" title="Edit Data">
+                                            class="btn btn-icon btn-light-soft text-primary" title="Edit Data">
                                             <i class="fas fa-edit"></i>
                                         </a>
                                         <?php endif; ?>
@@ -225,7 +260,7 @@ $pengurus = $stmt->fetchAll();
                                         </button>
                                         <?php endif; ?>
                                     <?php else: ?>
-                                        <span class="badge bg-light text-muted opacity-50"><i class="fas fa-lock me-1"></i> Terkunci</span>
+                                        <span class="badge bg-light text-muted opacity-50" title="Akun Super Admin Terproteksi"><i class="fas fa-lock me-1"></i> Terkunci</span>
                                     <?php endif; ?>
                                 </div>
                             </td>

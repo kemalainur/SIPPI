@@ -10,9 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* ============================================
-           RESET & BASE
-           ============================================ */
+
         *, *::before, *::after {
             margin: 0;
             padding: 0;
@@ -113,9 +111,6 @@
             100% { transform: translateY(-10vh) scale(0.5); opacity: 0; }
         }
 
-        /* ============================================
-           BENTUK GEOMETRIS DEKORATIF
-           ============================================ */
         .geo { position: fixed; pointer-events: none; z-index: 0; opacity: 0.07; }
         .geo--diamond {
             width: 180px; height: 180px;

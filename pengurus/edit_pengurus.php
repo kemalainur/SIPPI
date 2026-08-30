@@ -35,9 +35,9 @@ if (!$p) {
     exit;
 }
 
-// SECURITY: Sekjend cannot edit Super Admin
-if ($_SESSION['user']['nama_role'] == 'Sekjend' && $p['nama_role'] == 'Super Admin') {
-    $_SESSION['error'] = "Akses Ditolak: Sekjend tidak diperbolehkan mengubah data Super Admin.";
+// SECURITY: Only Super Admin can edit Super Admin
+if ($p['nama_role'] === 'Super Admin' && $_SESSION['user']['nama_role'] !== 'Super Admin') {
+    $_SESSION['error'] = "Akses Ditolak: Data dan password Super Admin hanya dapat diubah oleh Super Admin sendiri.";
     header("Location: data_pengurus.php");
     exit;
 }

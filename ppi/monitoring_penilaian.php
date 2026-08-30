@@ -83,23 +83,36 @@ if ($ppi_info['is_kepala']) {
     $all_biros = $stmtBiros->fetchAll();
 
     foreach ($all_biros as $b) {
-        $stmtTotB = $pdo->prepare("SELECT COUNT(*) FROM tabel_pengurus_jabatan j JOIN tabel_pengurus p ON j.nokta = p.nokta JOIN tabel_role r ON j.role_id = r.id_role WHERE j.kepengurusan_id = ? AND j.biro_id = ? AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') AND (p.angkatan IS NULL OR p.angkatan != '2023')");
-        $stmtTotB->execute([$active_p['id_kepengurusan'], $b['id_biro']]);
-        $tot_pengurus_biro = (int)$stmtTotB->fetchColumn();
+        $stmtMembers = $pdo->prepare("SELECT p.nokta, p.nama, j.jabatan,
+                                             (SELECT COUNT(*) FROM tabel_penilaian tp WHERE tp.dinilai_nokta = p.nokta AND tp.bulan = ? AND tp.tahun = ?) as is_rated
+                                      FROM tabel_pengurus_jabatan j 
+                                      JOIN tabel_pengurus p ON j.nokta = p.nokta 
+                                      JOIN tabel_role r ON j.role_id = r.id_role 
+                                      WHERE j.kepengurusan_id = ? AND j.biro_id = ? 
+                                      AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') 
+                                      AND (p.angkatan IS NULL OR p.angkatan != '2023')
+                                      ORDER BY p.nama ASC");
+        $stmtMembers->execute([$bulan, $tahun, $active_p['id_kepengurusan'], $b['id_biro']]);
+        $members_biro = $stmtMembers->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmtEvalB = $pdo->prepare("SELECT COUNT(DISTINCT tp.dinilai_nokta) 
-                                    FROM tabel_penilaian tp
-                                    JOIN tabel_pengurus p ON tp.dinilai_nokta = p.nokta
-                                    JOIN tabel_pengurus_jabatan j ON tp.dinilai_nokta = j.nokta AND j.kepengurusan_id = ?
-                                    JOIN tabel_role r ON j.role_id = r.id_role
-                                    WHERE tp.bulan = ? AND tp.tahun = ? AND j.biro_id = ? AND r.nama_role NOT IN ('Super Admin', 'PJnas', 'PJNas') AND (p.angkatan IS NULL OR p.angkatan != '2023')");
-        $stmtEvalB->execute([$active_p['id_kepengurusan'], $bulan, $tahun, $b['id_biro']]);
-        $eval_biro = (int)$stmtEvalB->fetchColumn();
+        $tot_pengurus_biro = count($members_biro);
+        $unrated_biro = [];
+        $eval_biro = 0;
+        foreach ($members_biro as $mb) {
+            if ($mb['is_rated'] > 0) {
+                $eval_biro++;
+            } else {
+                $unrated_biro[] = [
+                    'nokta' => $mb['nokta'],
+                    'nama' => $mb['nama'],
+                    'jabatan' => $mb['jabatan']
+                ];
+            }
+        }
 
-        $uneval_biro = max(0, $tot_pengurus_biro - $eval_biro);
         $pct_biro = $tot_pengurus_biro > 0 ? round(($eval_biro / $tot_pengurus_biro) * 100, 1) : 100;
 
-        $stmtPJ = $pdo->prepare("SELECT p.nama, j.jabatan FROM tabel_pengurus_jabatan j JOIN tabel_pengurus p ON j.nokta = p.nokta WHERE j.kepengurusan_id = ? AND j.biro_id = ? AND j.role_id = 4 LIMIT 1");
+        $stmtPJ = $pdo->prepare("SELECT p.nama, j.jabatan FROM tabel_pengurus_jabatan j JOIN tabel_pengurus p ON j.nokta = p.nokta WHERE j.kepengurusan_id = ? AND j.biro_id = ? AND (j.role_id = 4 OR LOWER(j.jabatan) LIKE '%pj%') LIMIT 1");
         $stmtPJ->execute([$active_p['id_kepengurusan'], $b['id_biro']]);
         $pj_data = $stmtPJ->fetch();
 
@@ -109,7 +122,8 @@ if ($ppi_info['is_kepala']) {
             'pj_nama' => $pj_data['nama'] ?? 'Staff PPI',
             'tot_pengurus' => $tot_pengurus_biro,
             'sudah_dinilai' => $eval_biro,
-            'belum_dinilai' => $uneval_biro,
+            'belum_dinilai' => count($unrated_biro),
+            'unrated_members' => $unrated_biro,
             'persen' => $pct_biro
         ];
     }
@@ -125,6 +139,11 @@ include '../layout/sidebar.php';
         <div>
             <h4 class="fw-800 text-brand-red mb-1">Monitoring Partisipasi Penilaian</h4>
             <p class="text-muted small mb-0">Memantau progres penilaian periode <span class="fw-800 text-dark"><?= $bulan ?>/<?= $tahun ?></span> (<?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> - <?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</p>
+        </div>
+        <div>
+            <a href="<?= base_url('ppi/penilaian_input.php') ?>" class="btn btn-primary rounded-pill px-4 fw-800 shadow-sm">
+                <i class="fas fa-edit me-1"></i> Buka Modul Penilaian
+            </a>
         </div>
     </div>
 
@@ -147,10 +166,17 @@ include '../layout/sidebar.php';
                                     <div class="progress-bar bg-danger" role="progressbar" style="width: <?= $bs['persen'] ?>%"></div>
                                 </div>
 
-                                <div class="d-flex justify-content-between small text-muted">
+                                <div class="d-flex justify-content-between align-items-center small text-muted">
                                     <span>Total: <strong><?= $bs['tot_pengurus'] ?></strong></span>
-                                    <span class="text-success">Sudah: <strong><?= $bs['sudah_dinilai'] ?></strong></span>
-                                    <span class="text-danger">Belum: <strong><?= $bs['belum_dinilai'] ?></strong></span>
+                                    <span class="text-success fw-bold">Sudah: <strong><?= $bs['sudah_dinilai'] ?></strong></span>
+                                    <?php if ($bs['belum_dinilai'] > 0): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill fw-bold shadow-sm" style="font-size: 0.75rem;"
+                                                onclick='openUnratedMonitorModal("<?= addslashes($bs['nama_biro']) ?>", <?= htmlspecialchars(json_encode($bs['unrated_members']), ENT_QUOTES, 'UTF-8') ?>)'>
+                                            <i class="fas fa-eye me-1"></i> Belum: <?= $bs['belum_dinilai'] ?>
+                                        </button>
+                                    <?php else: ?>
+                                        <span class="badge bg-success bg-opacity-15 text-success rounded-pill px-2 py-1 fw-bold"><i class="fas fa-check-double me-1"></i>Komplit</span>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -321,6 +347,60 @@ include '../layout/sidebar.php';
         </div>
     </div>
 </div>
+
+<!-- MODAL DETAIL PENGURUS BELUM DINILAI -->
+<div class="modal fade" id="unratedMonitorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-danger text-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+                <h6 class="modal-title fw-800 mb-0" id="unratedMonitorModalTitle">
+                    <i class="fas fa-user-clock me-2"></i>Pengurus Belum Dinilai
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 bg-white">
+                <p class="text-muted small mb-3">Berikut adalah anggota di biro ini yang belum dinilai pada periode aktif:</p>
+                <div class="list-group list-group-flush border rounded-3 mb-3 overflow-auto" id="unratedMonitorModalList" style="max-height: 320px;">
+                    <!-- Diisi via JavaScript -->
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn btn-light rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Tutup</button>
+                    <a href="<?= base_url('ppi/penilaian_input.php') ?>" class="btn btn-primary rounded-pill px-4 fw-800 shadow-sm">
+                        <i class="fas fa-edit me-1"></i> Buka Modul Penilaian
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openUnratedMonitorModal(biroName, unratedMembers) {
+    document.getElementById('unratedMonitorModalTitle').innerHTML = '<i class="fas fa-user-clock me-2"></i>Belum Dinilai: ' + biroName;
+    const listContainer = document.getElementById('unratedMonitorModalList');
+    listContainer.innerHTML = '';
+    
+    if (!unratedMembers || unratedMembers.length === 0) {
+        listContainer.innerHTML = '<div class="p-4 text-center text-success fw-bold"><i class="fas fa-check-circle fa-2x mb-2 d-block"></i> Semua anggota di biro ini sudah dinilai!</div>';
+    } else {
+        unratedMembers.forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center py-3 px-3';
+            item.innerHTML = `
+                <div>
+                    <div class="fw-800 text-dark">${m.nama}</div>
+                    <div class="text-muted small">${m.jabatan}</div>
+                </div>
+                <span class="badge bg-danger-soft text-danger fw-bold px-3 py-1 rounded-pill">Belum Ada Nilai</span>
+            `;
+            listContainer.appendChild(item);
+        });
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('unratedMonitorModal'));
+    modal.show();
+}
+</script>
 
 <style>
 .bg-slate-50 { background-color: #f8fafc; }

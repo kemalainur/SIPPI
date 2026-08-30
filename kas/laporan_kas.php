@@ -2,8 +2,6 @@
 require_once '../config/database.php';
 session_start();
 check_login();
-check_permission('kas.view');
-
 
 $title = "Laporan Kas Organisasi";
 include '../layout/header.php';

@@ -149,18 +149,42 @@ function get_kpi_settings() {
 function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
     global $pdo;
 
-    // Angkatan 2023 tidak diikutsertakan dalam sistem penilaian KPI
-    $stmtAngk = $pdo->prepare("SELECT angkatan FROM tabel_pengurus WHERE nokta = ?");
-    $stmtAngk->execute([$nokta]);
-    if ($stmtAngk->fetchColumn() === '2023') {
+    // Angkatan 2023 dan PJNas tidak diikutsertakan dalam kalkulasi KPI
+    $stmtCheck = $pdo->prepare("SELECT p.angkatan, r.nama_role 
+                                FROM tabel_pengurus p
+                                LEFT JOIN tabel_pengurus_jabatan j ON p.nokta = j.nokta AND j.kepengurusan_id = ?
+                                LEFT JOIN tabel_role r ON j.role_id = r.id_role
+                                WHERE p.nokta = ?");
+    $stmtCheck->execute([$kepengurusan_id, $nokta]);
+    $uInfo = $stmtCheck->fetch();
+
+    if (!$uInfo || $uInfo['angkatan'] === '2023' || in_array($uInfo['nama_role'], ['PJnas', 'PJNas'])) {
         return false;
     }
 
-    $stmtTotalKegiatan = $pdo->prepare("SELECT COUNT(*) FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
-    $stmtTotalKegiatan->execute([$bulan, $tahun, $kepengurusan_id]);
-    $totalKegiatan = max(1, (int)$stmtTotalKegiatan->fetchColumn());
+    // 1. Cek Jenis Periode & Pemetaan Bulan Disiplin
+    $stmtPeriode = $pdo->prepare("SELECT id_periode, jenis_periode, mode_penilaian 
+                                  FROM tabel_periode 
+                                  WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ? 
+                                  LIMIT 1");
+    $stmtPeriode->execute([$bulan, $tahun, $kepengurusan_id]);
+    $periodeRow = $stmtPeriode->fetch();
 
-    // 2. Performance (Attitude & Komunikasi) - Peer / PPI Assessment
+    $target_disiplin_months = [];
+    if ($periodeRow && $periodeRow['jenis_periode'] === 'Triwulan') {
+        $stmtMap = $pdo->prepare("SELECT bulan_sumber, tahun_sumber 
+                                  FROM tabel_periode_disiplin_bulan 
+                                  WHERE periode_id = ? 
+                                  ORDER BY tahun_sumber ASC, bulan_sumber ASC");
+        $stmtMap->execute([$periodeRow['id_periode']]);
+        $target_disiplin_months = $stmtMap->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    if (empty($target_disiplin_months)) {
+        $target_disiplin_months = [['bulan_sumber' => $bulan, 'tahun_sumber' => $tahun]];
+    }
+
+    // 2. Performance (Attitude & Komunikasi) - Manual Input
     $stmtAK = $pdo->prepare("SELECT i.kategori, AVG(tp.skor) as avg_score
                              FROM tabel_penilaian tp
                              JOIN tabel_indikator i ON tp.indikator_id = i.id_indikator
@@ -172,37 +196,53 @@ function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
     $nilai_attitude = (float)($ak_results['attitude'] ?? 0);
     $nilai_komunikasi = (float)($ak_results['komunikasi'] ?? 0);
 
-    // 1. Kehadiran calculation
-    // Hadir & Izin keduanya dihitung hadir (dateng)
-    $stmtHadir = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?) AND status_hadir IN ('hadir', 'izin')");
-    $stmtHadir->execute([$nokta, $bulan, $tahun, $kepengurusan_id]);
-    $jmlHadir = (int)$stmtHadir->fetchColumn();
-
-    $persenHadir = ($jmlHadir / $totalKegiatan) * 100;
-    if ($persenHadir >= 80) {
-        $scoreHadir = 4;
-    } elseif ($persenHadir >= 60) {
-        $scoreHadir = 3;
-    } elseif ($persenHadir >= 40) {
-        $scoreHadir = 2;
-    } else {
-        $scoreHadir = 1; // < 40% -> Skor 1
-    }
-
-    // 2. Ketepatan Membayar Kas calculation
-    $stmtKas = $pdo->prepare("SELECT status_bayar FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
-    $stmtKas->execute([$nokta, $bulan, $tahun]);
-    $kasStatus = $stmtKas->fetchColumn();
-    // Membayar kas tepat waktu = Skor 4, Tidak membayar kas = Skor 2
-    $scoreKas = ($kasStatus == 'sudah') ? 4 : 2;
-
-    // 3. Perhitungan Nilai Disiplin (Kehadiran 50%, Kas 50%)
+    // 3. Kalkulasi Otomatis Disiplin (Agregasi Rata-rata dari Bulan Terpilih)
     $settings = get_kpi_settings();
     $wHadir = $settings['weight_disiplin_hadir'] ?? 0.5;
     $wKas   = $settings['weight_disiplin_kas'] ?? 0.5;
-    $nilai_disiplin = ($scoreHadir * $wHadir) + ($scoreKas * $wKas);
 
-    // 6. Perhitungan Nilai KPI Akhir (Disiplin 30%, Komunikasi 30%, Attitude 40%)
+    $total_disiplin_accum = 0;
+    $month_count = 0;
+
+    foreach ($target_disiplin_months as $tm) {
+        $b_src = (int)$tm['bulan_sumber'];
+        $t_src = (int)$tm['tahun_sumber'];
+
+        // A. Kehadiran Kegiatan
+        $stmtTotKeg = $pdo->prepare("SELECT COUNT(*) FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
+        $stmtTotKeg->execute([$b_src, $t_src, $kepengurusan_id]);
+        $totalKegiatan = max(1, (int)$stmtTotKeg->fetchColumn());
+
+        $stmtHadir = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?) AND status_hadir IN ('hadir', 'izin')");
+        $stmtHadir->execute([$nokta, $b_src, $t_src, $kepengurusan_id]);
+        $jmlHadir = (int)$stmtHadir->fetchColumn();
+
+        $persenHadir = ($jmlHadir / $totalKegiatan) * 100;
+        if ($persenHadir >= 80) {
+            $scoreHadir = 4;
+        } elseif ($persenHadir >= 60) {
+            $scoreHadir = 3;
+        } elseif ($persenHadir >= 40) {
+            $scoreHadir = 2;
+        } else {
+            $scoreHadir = 1;
+        }
+
+        // B. Ketertiban Pembayaran Kas
+        $stmtKas = $pdo->prepare("SELECT status_bayar FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
+        $stmtKas->execute([$nokta, $b_src, $t_src]);
+        $kasStatus = $stmtKas->fetchColumn();
+        $scoreKas = ($kasStatus === 'sudah') ? 4 : 2;
+
+        // Disiplin bulan ini
+        $disiplin_bulan = ($scoreHadir * $wHadir) + ($scoreKas * $wKas);
+        $total_disiplin_accum += $disiplin_bulan;
+        $month_count++;
+    }
+
+    $nilai_disiplin = $month_count > 0 ? ($total_disiplin_accum / $month_count) : 4.0;
+
+    // 4. Perhitungan Nilai KPI Akhir (Disiplin, Komunikasi, Attitude)
     $wAttitude   = $settings['weight_attitude'] ?? 0.4;
     $wKomunikasi = $settings['weight_komunikasi'] ?? 0.3;
     $wDisiplin   = $settings['weight_disiplin'] ?? 0.3;
@@ -268,6 +308,7 @@ function get_user_ppi_info($nokta, $kepengurusan_id = null) {
     return [
         'is_2023' => $is_2023,
         'angkatan' => $angkatan,
+        'is_super_admin' => $is_super_admin,
         'is_ppi' => $is_ppi_role,
         'is_kepala' => $is_kepala,
         'is_staff_pj' => $is_ppi_role && !$is_kepala,

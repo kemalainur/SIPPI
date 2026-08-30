@@ -52,7 +52,7 @@ $role = $_SESSION['user']['nama_role'];
         </li>
         <?php endif; ?>
 
-        <?php if (has_permission('kas.view')): ?>
+        <!-- Modul Keuangan (Kas Saya & Laporan Kas untuk Seluruh Pengurus) -->
         <li class="<?= (strpos($_SERVER['PHP_SELF'], '/kas/') !== false) ? 'active' : '' ?>">
             <a href="#kasSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle">
                 <i class="fas fa-wallet"></i> Keuangan
@@ -60,15 +60,14 @@ $role = $_SESSION['user']['nama_role'];
             <ul class="collapse list-unstyled <?= (strpos($_SERVER['PHP_SELF'], '/kas/') !== false) ? 'show' : '' ?>" id="kasSubmenu">
                 <li><a href="<?= base_url('kas/kas_saya.php') ?>" class="fw-800 text-brand-red">Kas Saya</a></li>
                 <li><a href="<?= base_url('kas/laporan_kas.php') ?>">Laporan Kas</a></li>
-                <?php if (has_permission('kas.update')): ?>
+                <?php if (has_permission('kas.update') || in_array($_SESSION['user']['nama_role'], ['Super Admin', 'Bendum', 'Bendahara'])): ?>
                 <li><a href="<?= base_url('kas/status_kas_pengurus.php') ?>">Status Bayar Kas</a></li>
                 <?php endif; ?>
-                <?php if (has_permission('kas.manage')): ?>
+                <?php if (has_permission('kas.manage') || in_array($_SESSION['user']['nama_role'], ['Super Admin', 'Bendum', 'Bendahara'])): ?>
                 <li><a href="<?= base_url('kas/pengatur_kas.php') ?>">Konfigurasi Kas</a></li>
                 <?php endif; ?>
             </ul>
         </li>
-        <?php endif; ?>
 
         <?php if (has_permission('kpi.view') || has_permission('ppi.manage') || has_permission('kpi.manage')): ?>
         <li class="<?= (strpos($_SERVER['PHP_SELF'], '/ppi/') !== false) ? 'active' : '' ?>">
