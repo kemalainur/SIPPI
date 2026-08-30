@@ -341,78 +341,80 @@ include '../layout/sidebar.php';
 ?>
 
 <div id="content" class="fade-in">
-    <!-- HEADER UTAMA -->
+    <!-- HEADER UTAMA CLEAN & PROFESIONAL -->
     <div class="mb-4 d-flex justify-content-between align-items-center g-3 flex-wrap">
         <div>
-            <h4 class="fw-800 text-brand-red mb-1">Evaluasi Penilaian Pengurus</h4>
-            <div class="small text-muted d-flex align-items-center gap-2 flex-wrap mt-1">
-                <span>Periode: <span class="badge bg-primary px-2 rounded-pill"><?= $bulan ?>/<?= $tahun ?></span></span>
-                <span>Mode: <span class="badge bg-danger px-2 rounded-pill"><?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> (<?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</span></span>
+            <h4 class="fw-800 text-dark mb-1">Evaluasi Penilaian Pengurus</h4>
+            <div class="text-muted small d-flex align-items-center gap-2 flex-wrap">
+                <span>Periode: <strong class="text-dark fw-bold"><?= $bulan ?>/<?= $tahun ?></strong></span>
+                <span class="text-muted opacity-25">|</span>
+                <span>Mode: <strong class="text-dark fw-bold"><?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> (<?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</strong></span>
                 <?php if ($mode_penilaian === 'PPI' && $ppi_info['is_staff_pj'] && $ppi_info['nama_biro']): ?>
-                    <span>Biro Anda: <span class="badge bg-dark px-2 rounded-pill"><?= htmlspecialchars($ppi_info['nama_biro']) ?></span></span>
+                    <span class="text-muted opacity-25">|</span>
+                    <span>Biro: <strong class="text-dark fw-bold"><?= htmlspecialchars($ppi_info['nama_biro']) ?></strong></span>
                 <?php elseif ($mode_penilaian === 'PPI' && $is_kepala_or_admin): ?>
-                    <span>Akses: <span class="badge bg-success px-2 rounded-pill">Kepala PPI (Full Access & Monitoring PJ)</span></span>
+                    <span class="text-muted opacity-25">|</span>
+                    <span>Akses: <strong class="text-dark fw-bold">Kepala PPI</strong></span>
                 <?php endif; ?>
             </div>
         </div>
         <div class="text-end">
-            <span class="badge bg-rose-soft text-rose px-3 py-2 rounded-pill fw-bold small">
-                <i class="fas fa-shield-alt me-1"></i> Penilaian Bersifat Rahasia
+            <span class="text-muted small fw-600">
+                <i class="fas fa-lock me-1 text-muted opacity-75"></i> Penilaian Rahasia
             </span>
         </div>
     </div>
 
     <?php if ($message): ?>
         <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show d-flex align-items-center rounded-3 p-3 mb-4" role="alert">
-            <i class="fas fa-check-circle fa-lg me-3"></i>
-            <div><?= $message ?></div>
+            <i class="fas fa-check-circle fa-lg me-3 text-success"></i>
+            <div class="fw-600"><?= $message ?></div>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
 
-    <!-- WIDGET RINGKASAN PJ BIRO KHUSUS KEPALA PPI / SUPER ADMIN -->
+    <!-- WIDGET RINGKASAN PJ BIRO (CLEAN & MINIMALIST) -->
     <?php if (!empty($biro_summary)): ?>
         <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white overflow-hidden">
-            <div class="card-header bg-white border-0 py-3 px-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="card-header bg-white border-0 py-3 px-4 d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom border-light">
                 <div class="d-flex align-items-center">
-                    <div class="avatar-sm bg-danger-soft text-danger rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
-                        <i class="fas fa-tasks small"></i>
-                    </div>
-                    <h6 class="mb-0 fw-800 text-dark">Status Penilaian PJ Biro</h6>
+                    <h6 class="mb-0 fw-800 text-dark">
+                        <i class="fas fa-chart-pie me-2 text-muted"></i>Status Penilaian PJ Biro
+                    </h6>
                 </div>
-                <span class="text-muted very-small fw-600">Klik tombol merah pada kartu untuk melihat nama pengurus yang belum dinilai</span>
+                <span class="text-muted very-small">Klik kartu biro untuk memfilter daftar pengurus</span>
             </div>
-            <div class="card-body p-4 pt-0">
+            <div class="card-body p-4">
                 <div class="row g-3">
                     <?php foreach($biro_summary as $bs): 
                         $is_complete = ($bs['total'] > 0 && $bs['sudah'] >= $bs['total']);
                     ?>
                         <div class="col-md-4 col-sm-6">
-                            <div class="p-3 rounded-4 border biro-card-filter <?= $is_complete ? 'border-success-subtle bg-success-soft' : 'border-light bg-light' ?>" 
+                            <div class="p-3 rounded-3 border biro-card-filter bg-white <?= $is_complete ? 'border-success-subtle' : 'border-light-subtle' ?>" 
                                  style="cursor: pointer; transition: all 0.2s ease;"
                                  onclick="filterByBiroCard(<?= $bs['id_biro'] ?>)">
-                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                <div class="d-flex justify-content-between align-items-baseline mb-1">
                                     <span class="fw-800 text-dark" style="font-size: 0.95rem;"><?= htmlspecialchars($bs['nama_biro']) ?></span>
-                                    <span class="badge <?= $is_complete ? 'bg-success text-white' : 'bg-danger text-white' ?> rounded-pill px-2 py-1 small fw-bold">
+                                    <span class="fw-800 <?= $is_complete ? 'text-success' : 'text-dark' ?>" style="font-size: 1rem;">
                                         <?= $bs['persen'] ?>%
                                     </span>
                                 </div>
-                                <div class="small text-muted mb-2 text-truncate" style="font-size: 0.8rem;">
-                                    <i class="fas fa-user-tie me-1 opacity-75"></i> PJ: <strong><?= htmlspecialchars($bs['pj_nama']) ?></strong>
+                                <div class="text-muted mb-2 text-truncate" style="font-size: 0.78rem;">
+                                    PJ: <span class="text-dark fw-600"><?= htmlspecialchars($bs['pj_nama']) ?></span>
                                 </div>
-                                <div class="progress mb-2" style="height: 6px; border-radius: 3px;">
-                                    <div class="progress-bar <?= $is_complete ? 'bg-success' : 'bg-danger' ?>" role="progressbar" style="width: <?= $bs['persen'] ?>%"></div>
+                                <div class="progress mb-2 bg-slate-100" style="height: 5px; border-radius: 4px;">
+                                    <div class="progress-bar <?= $is_complete ? 'bg-success' : 'bg-dark' ?>" role="progressbar" style="width: <?= $bs['persen'] ?>%"></div>
                                 </div>
                                 
-                                <div class="d-flex justify-content-between align-items-center very-small mt-2 pt-2 border-top border-light-soft">
-                                    <span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i>Sudah: <?= $bs['sudah'] ?></span>
+                                <div class="d-flex justify-content-between align-items-center very-small mt-2 pt-2 border-top border-light">
+                                    <span class="text-muted fw-600">Sudah: <strong class="text-dark"><?= $bs['sudah'] ?></strong> / <?= $bs['total'] ?></span>
                                     <?php if ($bs['belum'] > 0): ?>
-                                        <button type="button" class="btn btn-sm btn-outline-danger py-0-5 px-2 rounded-pill fw-bold shadow-sm" style="font-size: 0.7rem;"
+                                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill fw-bold" style="font-size: 0.7rem; border-width: 1px;"
                                                 onclick='openUnratedModal("<?= addslashes($bs['nama_biro']) ?>", <?= htmlspecialchars(json_encode($bs['unrated_members']), ENT_QUOTES, 'UTF-8') ?>, <?= $bs['id_biro'] ?>); event.stopPropagation();'>
-                                            <i class="fas fa-eye me-1"></i> Belum: <?= $bs['belum'] ?>
+                                            Belum: <?= $bs['belum'] ?> <i class="fas fa-chevron-right ms-1 very-small opacity-50"></i>
                                         </button>
                                     <?php else: ?>
-                                        <span class="badge bg-success bg-opacity-15 text-success rounded-pill px-2 py-1 fw-bold"><i class="fas fa-check-double me-1"></i>Komplit</span>
+                                        <span class="text-success fw-bold"><i class="fas fa-check me-1"></i>Selesai</span>
                                     <?php endif; ?>
                                 </div>
                             </div>

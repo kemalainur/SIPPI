@@ -21,11 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tahun = (int)$_POST['tahun'];
         $jenis_periode = $_POST['jenis_periode'] ?? 'Bulanan';
         $mode_penilaian = $_POST['mode_penilaian'] ?? 'PPI';
-        $nama_sesi = trim($_POST['nama_sesi'] ?? '');
         $bulan_disiplin = isset($_POST['bulan_disiplin']) && is_array($_POST['bulan_disiplin']) ? $_POST['bulan_disiplin'] : [];
         try {
-            $stmt = $pdo->prepare("INSERT INTO tabel_periode (bulan, tahun, status, kepengurusan_id, jenis_periode, mode_penilaian, nama_sesi) VALUES (?, ?, 'aktif', ?, ?, ?, ?)");
-            $stmt->execute([$bulan, $tahun, $active_p['id_kepengurusan'], $jenis_periode, $mode_penilaian, $nama_sesi]);
+            $stmt = $pdo->prepare("INSERT INTO tabel_periode (bulan, tahun, status, kepengurusan_id, jenis_periode, mode_penilaian) VALUES (?, ?, 'aktif', ?, ?, ?)");
+            $stmt->execute([$bulan, $tahun, $active_p['id_kepengurusan'], $jenis_periode, $mode_penilaian]);
             $new_periode_id = $pdo->lastInsertId();
             if ($jenis_periode === 'Triwulan' || $jenis_periode === 'Triwulanan') {
                 if (!empty($bulan_disiplin)) {
@@ -50,10 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tahun = (int)$_POST['tahun'];
         $jenis_periode = $_POST['jenis_periode'] ?? 'Bulanan';
         $mode_penilaian = $_POST['mode_penilaian'] ?? 'PPI';
-        $nama_sesi = trim($_POST['nama_sesi'] ?? '');
         $bulan_disiplin = isset($_POST['bulan_disiplin']) && is_array($_POST['bulan_disiplin']) ? $_POST['bulan_disiplin'] : [];
-        $stmt = $pdo->prepare("UPDATE tabel_periode SET bulan = ?, tahun = ?, jenis_periode = ?, mode_penilaian = ?, nama_sesi = ? WHERE id_periode = ?");
-        $stmt->execute([$bulan, $tahun, $jenis_periode, $mode_penilaian, $nama_sesi, $id]);
+        $stmt = $pdo->prepare("UPDATE tabel_periode SET bulan = ?, tahun = ?, jenis_periode = ?, mode_penilaian = ? WHERE id_periode = ?");
+        $stmt->execute([$bulan, $tahun, $jenis_periode, $mode_penilaian, $id]);
         $pdo->prepare("DELETE FROM tabel_periode_disiplin_bulan WHERE periode_id = ?")->execute([$id]);
         if ($jenis_periode === 'Triwulan' || $jenis_periode === 'Triwulanan') {
             if (!empty($bulan_disiplin)) {
@@ -108,6 +106,14 @@ if ($stmtAllMaps) {
     }
 }
 
+// Ambil HANYA bulan yang pernah dibuka sebagai Penilaian Bulanan oleh Kepala PPI pada kepengurusan ini
+$stmtAvailable = $pdo->prepare("SELECT DISTINCT bulan, tahun 
+                                FROM tabel_periode 
+                                WHERE kepengurusan_id = ? AND jenis_periode = 'Bulanan'
+                                ORDER BY tahun ASC, bulan ASC");
+$stmtAvailable->execute([$active_p['id_kepengurusan']]);
+$available_months = $stmtAvailable->fetchAll(PDO::FETCH_ASSOC);
+
 $kegiatans = [];
 if ($active) {
     $stmtKeg = $pdo->prepare("SELECT * FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
@@ -155,9 +161,6 @@ $indonesian_months = [
                         $active_mapped = $period_discipline_map[$active['id_periode']] ?? [];
                     ?>
                         <div class="bg-gradient-emerald p-4 rounded-4 text-white text-center shadow-sm mb-4">
-                            <?php if (!empty($active['nama_sesi'])): ?>
-                                <div class="small fw-800 text-white-50 text-uppercase ls-1 mb-1"><?= htmlspecialchars($active['nama_sesi']) ?></div>
-                            <?php endif; ?>
                             <h2 class="fw-800 mb-0"><?= $indonesian_months[(int)$active['bulan']] ?></h2>
                             <p class="mb-0 opacity-75 fw-600 ls-1"><?= $active['tahun'] ?></p>
                             <div class="mt-3 d-flex justify-content-center gap-1 flex-wrap">
@@ -277,9 +280,6 @@ $indonesian_months = [
                                                     </div>
                                                     <div>
                                                         <div class="fw-800 text-dark"><?= $indonesian_months[(int)$h['bulan']] ?> <?= $h['tahun'] ?></div>
-                                                        <?php if (!empty($h['nama_sesi'])): ?>
-                                                            <div class="text-muted small ls-1 fw-bold"><?= htmlspecialchars($h['nama_sesi']) ?></div>
-                                                        <?php endif; ?>
                                                         <?php if (!empty($h_mapped)): ?>
                                                             <div class="badge bg-light text-primary border px-2 py-0-5 very-small mt-1">
                                                                 <i class="fas fa-link me-1"></i>Disiplin: <?= implode(', ', array_map(function($m) use ($indonesian_months) { return substr($indonesian_months[$m], 0, 3); }, $h_mapped)) ?>
@@ -353,27 +353,33 @@ $indonesian_months = [
                                 <option value="Peer Assessment">Peer Assessment (Pengurus)</option>
                             </select>
                         </div>
-                        <div class="col-12">
-                            <label class="form-label small fw-800 text-muted ls-1 text-uppercase">Nama Sesi / Keterangan (Opsional)</label>
-                            <input type="text" name="nama_sesi" class="form-control border-0 bg-light" placeholder="Contoh: Triwulan I (Q1 - Evaluasi)">
-                        </div>
                         <div class="col-12" id="open_disiplin_wrapper" style="display: none;">
                             <div class="p-3 bg-light rounded-3 border">
                                 <label class="form-label small fw-800 text-dark text-uppercase mb-1">
                                     <i class="fas fa-tasks text-primary me-1"></i> Sumber Data Disiplin (Absensi & Kas)
                                 </label>
-                                <p class="text-muted very-small mb-2">Pilih bulan-bulan yang datanya akan dirata-ratakan untuk nilai disiplin periode triwulan ini:</p>
+                                <p class="text-muted very-small mb-2">Pilih riwayat bulan penilaian yang datanya akan dirata-ratakan untuk nilai disiplin periode ini:</p>
                                 <div class="row g-2">
-                                    <?php foreach($indonesian_months as $m_num => $m_name): ?>
-                                        <div class="col-4 col-sm-3">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="bulan_disiplin[]" value="<?= $m_num ?>" id="open_disiplin_<?= $m_num ?>">
-                                                <label class="form-check-label small fw-600" for="open_disiplin_<?= $m_num ?>">
-                                                    <?= substr($m_name, 0, 3) ?>
-                                                </label>
+                                    <?php if (!empty($available_months)): ?>
+                                        <?php foreach($available_months as $em): 
+                                            $m_val = (int)$em['bulan'];
+                                            $y_val = (int)$em['tahun'];
+                                            $m_label = $indonesian_months[$m_val] . ' ' . $y_val;
+                                        ?>
+                                            <div class="col-6 col-sm-4">
+                                                <div class="form-check p-2 border rounded bg-white">
+                                                    <input class="form-check-input ms-0 me-2" type="checkbox" name="bulan_disiplin[]" value="<?= $m_val ?>" id="open_disiplin_<?= $m_val ?>">
+                                                    <label class="form-check-label small fw-bold text-dark cursor-pointer" for="open_disiplin_<?= $m_val ?>">
+                                                        <?= $m_label ?>
+                                                    </label>
+                                                </div>
                                             </div>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <div class="col-12 text-muted small p-2">
+                                            <i class="fas fa-info-circle me-1 text-muted"></i> Belum ada riwayat penilaian bulanan pada tahun kepengurusan ini.
                                         </div>
-                                    <?php endforeach; ?>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -468,27 +474,33 @@ function toggleDisiplinSection(selectElem, targetModeId, targetDisiplinWrapperId
                                 <option value="Peer Assessment" <?= ($h['mode_penilaian'] ?? '') == 'Peer Assessment' ? 'selected' : '' ?>>Peer Assessment (Pengurus)</option>
                             </select>
                         </div>
-                        <div class="col-12">
-                            <label class="form-label small fw-800 text-muted text-uppercase">Nama Sesi / Keterangan</label>
-                            <input type="text" name="nama_sesi" value="<?= htmlspecialchars($h['nama_sesi'] ?? '') ?>" class="form-control border-0 bg-light" placeholder="Contoh: Triwulan I (Q1)">
-                        </div>
                         <div class="col-12" id="edit_disiplin_wrapper_<?= $h['id_periode'] ?>" style="<?= $is_triwulan ? 'display: block;' : 'display: none;' ?>">
                             <div class="p-3 bg-light rounded-3 border">
                                 <label class="form-label small fw-800 text-dark text-uppercase mb-1">
                                     <i class="fas fa-tasks text-primary me-1"></i> Sumber Data Disiplin (Absensi & Kas)
                                 </label>
-                                <p class="text-muted very-small mb-2">Pilih bulan-bulan yang datanya akan dirata-ratakan untuk nilai disiplin periode triwulan ini:</p>
+                                <p class="text-muted very-small mb-2">Pilih riwayat bulan penilaian yang datanya akan dirata-ratakan untuk nilai disiplin periode ini:</p>
                                 <div class="row g-2">
-                                    <?php foreach($indonesian_months as $m_num => $m_name): ?>
-                                        <div class="col-4 col-sm-3">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="bulan_disiplin[]" value="<?= $m_num ?>" id="edit_disiplin_<?= $h['id_periode'] ?>_<?= $m_num ?>" <?= in_array($m_num, $mapped_for_h) ? 'checked' : '' ?>>
-                                                <label class="form-check-label small fw-600" for="edit_disiplin_<?= $h['id_periode'] ?>_<?= $m_num ?>">
-                                                    <?= substr($m_name, 0, 3) ?>
-                                                </label>
+                                    <?php if (!empty($available_months)): ?>
+                                        <?php foreach($available_months as $em): 
+                                            $m_val = (int)$em['bulan'];
+                                            $y_val = (int)$em['tahun'];
+                                            $m_label = $indonesian_months[$m_val] . ' ' . $y_val;
+                                        ?>
+                                            <div class="col-6 col-sm-4">
+                                                <div class="form-check p-2 border rounded bg-white">
+                                                    <input class="form-check-input ms-0 me-2" type="checkbox" name="bulan_disiplin[]" value="<?= $m_val ?>" id="edit_disiplin_<?= $h['id_periode'] ?>_<?= $m_val ?>" <?= in_array($m_val, $mapped_for_h) ? 'checked' : '' ?>>
+                                                    <label class="form-check-label small fw-bold text-dark cursor-pointer" for="edit_disiplin_<?= $h['id_periode'] ?>_<?= $m_val ?>">
+                                                        <?= $m_label ?>
+                                                    </label>
+                                                </div>
                                             </div>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <div class="col-12 text-muted small p-2">
+                                            <i class="fas fa-info-circle me-1 text-muted"></i> Belum ada riwayat penilaian bulanan pada tahun kepengurusan ini.
                                         </div>
-                                    <?php endforeach; ?>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>

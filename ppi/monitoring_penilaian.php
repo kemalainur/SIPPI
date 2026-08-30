@@ -137,8 +137,8 @@ include '../layout/sidebar.php';
 <div id="content" class="fade-in">
     <div class="d-flex justify-content-between align-items-center mb-4 g-3 flex-wrap">
         <div>
-            <h4 class="fw-800 text-brand-red mb-1">Monitoring Partisipasi Penilaian</h4>
-            <p class="text-muted small mb-0">Memantau progres penilaian periode <span class="fw-800 text-dark"><?= $bulan ?>/<?= $tahun ?></span> (<?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> - <?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</p>
+            <h4 class="fw-800 text-dark mb-1">Monitoring Partisipasi Penilaian</h4>
+            <p class="text-muted small mb-0">Periode: <strong class="text-dark"><?= $bulan ?>/<?= $tahun ?></strong> (<?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> - <?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</p>
         </div>
         <div>
             <a href="<?= base_url('ppi/penilaian_input.php') ?>" class="btn btn-primary rounded-pill px-4 fw-800 shadow-sm">
@@ -150,32 +150,33 @@ include '../layout/sidebar.php';
     <?php if ($biro_stats): ?>
         <!-- Monitoring Biro khusus Kepala PPI -->
         <div class="mb-4">
-            <h6 class="fw-800 text-dark mb-3"><i class="fas fa-chart-pie text-danger me-2"></i>Progres Penilaian Per Biro (PJ Biro)</h6>
+            <h6 class="fw-800 text-dark mb-3"><i class="fas fa-chart-pie text-muted me-2"></i>Progres Penilaian Per Biro</h6>
             <div class="row g-3">
-                <?php foreach($biro_stats as $bs): ?>
+                <?php foreach($biro_stats as $bs): 
+                    $is_complete = ($bs['tot_pengurus'] > 0 && $bs['sudah_dinilai'] >= $bs['tot_pengurus']);
+                ?>
                     <div class="col-md-4">
                         <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
                             <div class="card-body p-4">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="badge bg-danger-soft text-danger fw-bold px-3 py-1 rounded-pill">Biro <?= htmlspecialchars($bs['nama_biro']) ?></span>
-                                    <span class="fw-800 text-dark" style="font-size: 1.1rem;"><?= $bs['persen'] ?>%</span>
+                                <div class="d-flex justify-content-between align-items-baseline mb-2">
+                                    <span class="fw-800 text-dark" style="font-size: 0.95rem;">Biro <?= htmlspecialchars($bs['nama_biro']) ?></span>
+                                    <span class="fw-800 <?= $is_complete ? 'text-success' : 'text-dark' ?>" style="font-size: 1.05rem;"><?= $bs['persen'] ?>%</span>
                                 </div>
-                                <div class="small text-muted mb-3"><i class="fas fa-user-shield me-1"></i> PJ: <strong><?= htmlspecialchars($bs['pj_nama']) ?></strong></div>
+                                <div class="small text-muted mb-3">PJ: <span class="text-dark fw-600"><?= htmlspecialchars($bs['pj_nama']) ?></span></div>
                                 
-                                <div class="progress mb-3" style="height: 8px; border-radius: 4px;">
-                                    <div class="progress-bar bg-danger" role="progressbar" style="width: <?= $bs['persen'] ?>%"></div>
+                                <div class="progress mb-3 bg-slate-100" style="height: 6px; border-radius: 3px;">
+                                    <div class="progress-bar <?= $is_complete ? 'bg-success' : 'bg-dark' ?>" role="progressbar" style="width: <?= $bs['persen'] ?>%"></div>
                                 </div>
 
-                                <div class="d-flex justify-content-between align-items-center small text-muted">
-                                    <span>Total: <strong><?= $bs['tot_pengurus'] ?></strong></span>
-                                    <span class="text-success fw-bold">Sudah: <strong><?= $bs['sudah_dinilai'] ?></strong></span>
+                                <div class="d-flex justify-content-between align-items-center very-small text-muted border-top border-light pt-2">
+                                    <span>Sudah: <strong class="text-dark"><?= $bs['sudah_dinilai'] ?></strong> / <?= $bs['tot_pengurus'] ?></span>
                                     <?php if ($bs['belum_dinilai'] > 0): ?>
-                                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill fw-bold shadow-sm" style="font-size: 0.75rem;"
+                                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill fw-bold" style="font-size: 0.7rem; border-width: 1px;"
                                                 onclick='openUnratedMonitorModal("<?= addslashes($bs['nama_biro']) ?>", <?= htmlspecialchars(json_encode($bs['unrated_members']), ENT_QUOTES, 'UTF-8') ?>)'>
-                                            <i class="fas fa-eye me-1"></i> Belum: <?= $bs['belum_dinilai'] ?>
+                                            Belum: <?= $bs['belum_dinilai'] ?> <i class="fas fa-chevron-right ms-1 very-small opacity-50"></i>
                                         </button>
                                     <?php else: ?>
-                                        <span class="badge bg-success bg-opacity-15 text-success rounded-pill px-2 py-1 fw-bold"><i class="fas fa-check-double me-1"></i>Komplit</span>
+                                        <span class="text-success fw-bold"><i class="fas fa-check me-1"></i>Selesai</span>
                                     <?php endif; ?>
                                 </div>
                             </div>

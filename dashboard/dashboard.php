@@ -328,44 +328,44 @@ else
     </div>
 
     <?php if ($kepala_ppi_dashboard): ?>
-        <!-- Dashboard Monitoring Kepala PPI -->
+        <!-- Dashboard Monitoring Kepala PPI (CLEAN & PROFESSIONAL) -->
         <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-white">
-            <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h6 class="mb-0 fw-800 text-dark">
-                    <i class="fas fa-shield-alt text-danger me-2"></i> Monitoring Dashboard Kepala PPI
-                </h6>
-                <div>
-                    <span class="badge bg-danger text-white rounded-pill px-3 py-1 fw-bold me-1">
-                        Mode: <?= htmlspecialchars($periodeAktif['mode_penilaian'] ?? 'PPI') ?>
-                    </span>
-                    <span class="badge bg-dark text-white rounded-pill px-3 py-1 fw-bold">
-                        Periode: <?= htmlspecialchars($periodeAktif['jenis_periode'] ?? 'Bulanan') ?> (<?= $periodeAktif['bulan'] ?>/<?= $periodeAktif['tahun'] ?>)
-                    </span>
+            <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2 border-bottom border-light">
+                <div class="d-flex align-items-center">
+                    <h6 class="mb-0 fw-800 text-dark">
+                        <i class="fas fa-chart-pie text-muted me-2"></i> Monitoring Progres PJ Biro
+                    </h6>
+                </div>
+                <div class="text-muted small">
+                    Periode: <strong class="text-dark"><?= $periodeAktif['bulan'] ?>/<?= $periodeAktif['tahun'] ?></strong>
+                    <span class="opacity-25 mx-1">|</span>
+                    Mode: <strong class="text-dark"><?= htmlspecialchars($periodeAktif['mode_penilaian'] ?? 'PPI') ?> (<?= htmlspecialchars($periodeAktif['jenis_periode'] ?? 'Bulanan') ?>)</strong>
                 </div>
             </div>
-            <div class="card-body p-4 pt-2">
+            <div class="card-body p-4">
                 <div class="row g-3">
-                    <?php foreach ($kepala_ppi_dashboard as $kpd): ?>
+                    <?php foreach ($kepala_ppi_dashboard as $kpd): 
+                        $is_complete = ($kpd['tot_pengurus'] > 0 && $kpd['sudah_dinilai'] >= $kpd['tot_pengurus']);
+                    ?>
                         <div class="col-md-4">
-                            <div class="p-3 rounded-4 bg-slate-50 border border-light">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-800 text-dark">Biro <?= htmlspecialchars($kpd['nama_biro']) ?></span>
-                                    <span class="badge bg-danger text-white fw-bold"><?= $kpd['persen'] ?>%</span>
+                            <div class="p-3 rounded-3 bg-white border border-light-subtle">
+                                <div class="d-flex justify-content-between align-items-baseline mb-2">
+                                    <span class="fw-800 text-dark" style="font-size: 0.95rem;">Biro <?= htmlspecialchars($kpd['nama_biro']) ?></span>
+                                    <span class="fw-800 <?= $is_complete ? 'text-success' : 'text-dark' ?>" style="font-size: 1.05rem;"><?= $kpd['persen'] ?>%</span>
                                 </div>
-                                <div class="small text-muted mb-2"><i class="fas fa-user-shield me-1"></i> PJ: <strong><?= htmlspecialchars($kpd['pj_nama']) ?></strong></div>
-                                <div class="progress mb-3" style="height: 6px;">
-                                    <div class="progress-bar bg-danger" style="width: <?= $kpd['persen'] ?>%"></div>
+                                <div class="small text-muted mb-2">PJ: <span class="text-dark fw-600"><?= htmlspecialchars($kpd['pj_nama']) ?></span></div>
+                                <div class="progress mb-3 bg-slate-100" style="height: 5px; border-radius: 3px;">
+                                    <div class="progress-bar <?= $is_complete ? 'bg-success' : 'bg-dark' ?>" style="width: <?= $kpd['persen'] ?>%"></div>
                                 </div>
-                                <div class="d-flex justify-content-between align-items-center small text-muted">
-                                    <span>Total: <strong><?= $kpd['tot_pengurus'] ?></strong></span>
-                                    <span class="text-success fw-bold">Sudah: <strong><?= $kpd['sudah_dinilai'] ?></strong></span>
+                                <div class="d-flex justify-content-between align-items-center very-small text-muted border-top border-light pt-2">
+                                    <span>Sudah: <strong class="text-dark"><?= $kpd['sudah_dinilai'] ?></strong> / <?= $kpd['tot_pengurus'] ?></span>
                                     <?php if ($kpd['belum_dinilai'] > 0): ?>
-                                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill fw-bold shadow-sm" style="font-size: 0.75rem;"
+                                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill fw-bold" style="font-size: 0.7rem; border-width: 1px;"
                                                 onclick='openUnratedDashboardModal("<?= addslashes($kpd['nama_biro']) ?>", <?= htmlspecialchars(json_encode($kpd['unrated_members']), ENT_QUOTES, 'UTF-8') ?>)'>
-                                            <i class="fas fa-eye me-1"></i> Belum: <?= $kpd['belum_dinilai'] ?>
+                                            Belum: <?= $kpd['belum_dinilai'] ?> <i class="fas fa-chevron-right ms-1 very-small opacity-50"></i>
                                         </button>
                                     <?php else: ?>
-                                        <span class="badge bg-success bg-opacity-15 text-success rounded-pill px-2 py-1 fw-bold"><i class="fas fa-check-double me-1"></i>Komplit</span>
+                                        <span class="text-success fw-bold"><i class="fas fa-check me-1"></i>Selesai</span>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -373,11 +373,11 @@ else
                     <?php endforeach; ?>
                 </div>
                 <div class="mt-3 text-end">
-                    <a href="<?= base_url('ppi/monitoring_penilaian.php') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold">
-                        <i class="fas fa-eye me-1"></i> Detail Monitoring
+                    <a href="<?= base_url('ppi/monitoring_penilaian.php') ?>" class="btn btn-sm btn-outline-dark rounded-pill px-3 fw-bold">
+                        <i class="fas fa-chart-line me-1"></i> Detail Monitoring
                     </a>
-                    <a href="<?= base_url('ppi/penilaian_input.php') ?>" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold ms-1">
-                        <i class="fas fa-edit me-1"></i> Bantu Penilaian
+                    <a href="<?= base_url('ppi/penilaian_input.php') ?>" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold ms-1">
+                        <i class="fas fa-edit me-1"></i> Form Penilaian
                     </a>
                 </div>
             </div>
@@ -386,46 +386,47 @@ else
 
     <?php if ($staff_ppi_dashboard): 
         $pct_staff = $staff_ppi_dashboard['total'] > 0 ? round(($staff_ppi_dashboard['sudah'] / $staff_ppi_dashboard['total']) * 100, 1) : 100;
+        $is_staff_complete = ($pct_staff >= 100);
     ?>
-        <!-- Dashboard Staff PPI (PJ Biro) - Information Summary Only -->
+        <!-- Dashboard Staff PPI (PJ Biro) - CLEAN & MINIMALIST -->
         <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-white">
-            <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2 border-bottom border-light">
                 <h6 class="mb-0 fw-800 text-dark">
-                    <i class="fas fa-user-shield text-danger me-2"></i> Ringkasan Penilaian PJ Biro <?= htmlspecialchars($staff_ppi_dashboard['nama_biro']) ?>
+                    <i class="fas fa-user-shield text-muted me-2"></i> Penilaian Biro <?= htmlspecialchars($staff_ppi_dashboard['nama_biro']) ?>
                 </h6>
-                <span class="badge bg-primary text-white rounded-pill px-3 py-1 fw-bold">
-                    Tanggung Jawab: Biro <?= htmlspecialchars($staff_ppi_dashboard['nama_biro']) ?>
+                <span class="text-muted small">
+                    PJ Biro: <strong class="text-dark"><?= htmlspecialchars($staff_ppi_dashboard['nama_biro']) ?></strong>
                 </span>
             </div>
-            <div class="card-body p-4 pt-2">
+            <div class="card-body p-4">
                 <div class="row g-3 mb-3">
                     <div class="col-md-4">
-                        <div class="p-3 bg-light rounded-4 text-center border border-light">
-                            <div class="text-muted small fw-600">Harus Dinilai</div>
-                            <div class="fw-800 text-dark h3 mb-0"><?= $staff_ppi_dashboard['total'] ?> <span class="fs-6 text-muted fw-bold">Pengurus</span></div>
+                        <div class="p-3 bg-white rounded-3 text-center border border-light-subtle">
+                            <div class="text-muted very-small fw-600">Total Pengurus</div>
+                            <div class="fw-800 text-dark h4 mb-0"><?= $staff_ppi_dashboard['total'] ?></div>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="p-3 bg-brand-green-soft rounded-4 text-center border border-light">
-                            <div class="text-brand-green small fw-600">Sudah Dinilai</div>
-                            <div class="fw-800 text-brand-green h3 mb-0"><?= $staff_ppi_dashboard['sudah'] ?> <span class="fs-6 text-brand-green fw-bold">Pengurus</span></div>
+                        <div class="p-3 bg-white rounded-3 text-center border border-light-subtle">
+                            <div class="text-muted very-small fw-600">Sudah Dinilai</div>
+                            <div class="fw-800 text-success h4 mb-0"><?= $staff_ppi_dashboard['sudah'] ?></div>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="p-3 bg-danger-soft rounded-4 text-center border border-light">
-                            <div class="text-danger small fw-600">Belum Dinilai</div>
-                            <div class="fw-800 text-danger h3 mb-0"><?= $staff_ppi_dashboard['belum'] ?> <span class="fs-6 text-danger fw-bold">Pengurus</span></div>
+                        <div class="p-3 bg-white rounded-3 text-center border border-light-subtle">
+                            <div class="text-muted very-small fw-600">Belum Dinilai</div>
+                            <div class="fw-800 <?= $staff_ppi_dashboard['belum'] > 0 ? 'text-danger' : 'text-muted' ?> h4 mb-0"><?= $staff_ppi_dashboard['belum'] ?></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="p-3 rounded-4 bg-slate-50 border border-light mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-800 text-dark">Progres Penyelesaian Penilaian Biro <?= htmlspecialchars($staff_ppi_dashboard['nama_biro']) ?></span>
-                        <span class="badge bg-danger text-white fw-bold fs-6"><?= $pct_staff ?>%</span>
+                <div class="p-3 rounded-3 bg-white border border-light-subtle mb-3">
+                    <div class="d-flex justify-content-between align-items-baseline mb-2">
+                        <span class="fw-800 text-dark small">Progres Penyelesaian</span>
+                        <span class="fw-800 <?= $is_staff_complete ? 'text-success' : 'text-dark' ?>"><?= $pct_staff ?>%</span>
                     </div>
-                    <div class="progress" style="height: 10px; border-radius: 5px;">
-                        <div class="progress-bar bg-danger" role="progressbar" style="width: <?= $pct_staff ?>%"></div>
+                    <div class="progress bg-slate-100" style="height: 6px; border-radius: 3px;">
+                        <div class="progress-bar <?= $is_staff_complete ? 'bg-success' : 'bg-dark' ?>" role="progressbar" style="width: <?= $pct_staff ?>%"></div>
                     </div>
                 </div>
 
