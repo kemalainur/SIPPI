@@ -346,7 +346,7 @@ include '../layout/sidebar.php';
         <div>
             <h4 class="fw-800 text-dark mb-1">Evaluasi Penilaian Pengurus</h4>
             <div class="text-muted small d-flex align-items-center gap-2 flex-wrap">
-                <span>Periode: <strong class="text-dark fw-bold"><?= $bulan ?>/<?= $tahun ?></strong></span>
+                <span>Periode: <strong class="text-dark fw-bold"><?= format_nama_periode($active) ?></strong></span>
                 <span class="text-muted opacity-25">|</span>
                 <span>Mode: <strong class="text-dark fw-bold"><?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> (<?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</strong></span>
                 <?php if ($mode_penilaian === 'PPI' && $ppi_info['is_staff_pj'] && $ppi_info['nama_biro']): ?>

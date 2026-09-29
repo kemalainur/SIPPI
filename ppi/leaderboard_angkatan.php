@@ -19,7 +19,7 @@ $activeM = $stmtAktif->fetch();
 $bulan = $activeM['bulan'] ?? null;
 $tahun = $activeM['tahun'] ?? null;
 
-$stmtAllP = $pdo->prepare("SELECT bulan, tahun FROM tabel_periode WHERE kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC");
+$stmtAllP = $pdo->prepare("SELECT id_periode, bulan, tahun, jenis_periode, mode_penilaian FROM tabel_periode WHERE kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC");
 $stmtAllP->execute([$active_id]);
 $allPeriods = $stmtAllP->fetchAll();
 
@@ -67,7 +67,7 @@ $leaderboard2025 = getLeaderboardByAngkatan($pdo, $active_id, $view_bulan, $view
                             $val = $ap['bulan'].'|'.$ap['tahun'];
                             $sel = ($view_bulan == $ap['bulan'] && $view_tahun == $ap['tahun']) ? 'selected' : '';
                         ?>
-                            <option value="<?= $val ?>" <?= $sel ?>><?= sprintf('%02d/%d', $ap['bulan'], $ap['tahun']) ?> <?= ($ap['bulan']==$activeM['bulan'] && $ap['tahun']==$activeM['tahun']) ? '(Aktif)' : '' ?></option>
+                            <option value="<?= $val ?>" <?= $sel ?>><?= format_nama_periode($ap) ?> <?= ($ap['bulan']==($activeM['bulan'] ?? null) && $ap['tahun']==($activeM['tahun'] ?? null)) ? '(Aktif)' : '' ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

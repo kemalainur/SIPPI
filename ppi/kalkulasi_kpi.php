@@ -39,7 +39,7 @@ foreach ($members as $nokta) {
     update_kpi_member($nokta, $bulan, $tahun, $active_p['id_kepengurusan']);
 }
 
-$_SESSION['success'] = "Kalkulasi Nilai KPI bulan $bulan/$tahun Berhasil!";
+$_SESSION['success'] = "Kalkulasi Nilai KPI " . format_nama_periode($active) . " Berhasil!";
 header("Location: monitoring_penilaian.php");
 exit;
 ?>

@@ -138,7 +138,7 @@ include '../layout/sidebar.php';
     <div class="d-flex justify-content-between align-items-center mb-4 g-3 flex-wrap">
         <div>
             <h4 class="fw-800 text-dark mb-1">Monitoring Partisipasi Penilaian</h4>
-            <p class="text-muted small mb-0">Periode: <strong class="text-dark"><?= $bulan ?>/<?= $tahun ?></strong> (<?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> - <?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</p>
+            <p class="text-muted small mb-0">Periode: <strong class="text-dark"><?= format_nama_periode($active) ?></strong> (<?= htmlspecialchars($active['mode_penilaian'] ?? 'PPI') ?> - <?= htmlspecialchars($active['jenis_periode'] ?? 'Bulanan') ?>)</p>
         </div>
         <div>
             <a href="<?= base_url('ppi/penilaian_input.php') ?>" class="btn btn-primary rounded-pill px-4 fw-800 shadow-sm">

@@ -321,7 +321,7 @@ else
                 <span class="small fw-800 text-dark"><?= $active_p['nama_periode'] ?? 'Tahun Belum Diatur' ?></span>
                 <div class="vr mx-3" style="height: 20px; opacity: 0.1;"></div>
                 <span class="badge <?= $periodeAktif ? 'bg-brand-red-soft text-brand-red' : 'bg-slate-100 text-muted' ?> px-3 py-2 rounded-pill fw-bold">
-                    <?= $periodeAktif ? '<i class="fas fa-check-circle me-1"></i> Bulan ' . $periodeAktif['bulan'] . ' Terbuka' : '<i class="fas fa-lock me-1"></i> Ditutup' ?>
+                    <?= $periodeAktif ? '<i class="fas fa-check-circle me-1"></i> ' . format_nama_periode($periodeAktif) . ' Aktif' : '<i class="fas fa-lock me-1"></i> Ditutup' ?>
                 </span>
             </div>
         </div>
@@ -337,7 +337,7 @@ else
                     </h6>
                 </div>
                 <div class="text-muted small">
-                    Periode: <strong class="text-dark"><?= $periodeAktif['bulan'] ?>/<?= $periodeAktif['tahun'] ?></strong>
+                    Periode: <strong class="text-dark"><?= format_nama_periode($periodeAktif) ?></strong>
                     <span class="opacity-25 mx-1">|</span>
                     Mode: <strong class="text-dark"><?= htmlspecialchars($periodeAktif['mode_penilaian'] ?? 'PPI') ?> (<?= htmlspecialchars($periodeAktif['jenis_periode'] ?? 'Bulanan') ?>)</strong>
                 </div>

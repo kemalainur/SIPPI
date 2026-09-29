@@ -25,10 +25,12 @@ if ($is_admin) {
 $active_p = get_active_kepengurusan();
 $active_id = $active_p['id_kepengurusan'] ?? 0;
 
-$stmtHistory = $pdo->prepare("SELECT bulan, tahun, nilai_attitude, nilai_komunikasi, nilai_disiplin, nilai_kpi_total 
-                             FROM tabel_nilai_kpi 
-                             WHERE nokta = ? AND kepengurusan_id = ?
-                             ORDER BY tahun ASC, bulan ASC");
+$stmtHistory = $pdo->prepare("SELECT k.bulan, k.tahun, k.nilai_attitude, k.nilai_komunikasi, k.nilai_disiplin, k.nilai_kpi_total,
+                              p.jenis_periode, p.mode_penilaian 
+                             FROM tabel_nilai_kpi k
+                             LEFT JOIN tabel_periode p ON k.bulan = p.bulan AND k.tahun = p.tahun AND k.kepengurusan_id = p.kepengurusan_id
+                             WHERE k.nokta = ? AND k.kepengurusan_id = ?
+                             ORDER BY k.tahun ASC, k.bulan ASC");
 $stmtHistory->execute([$view_nokta, $active_id]);
 $history = $stmtHistory->fetchAll();
 
@@ -55,7 +57,7 @@ $dataDisiplin = [];
 $dataTotal = [];
 
 foreach($history as $h) {
-    $labels[] = $h['bulan'] . '/' . $h['tahun'];
+    $labels[] = format_nama_periode($h);
     $dataAttitude[] = (float)$h['nilai_attitude'];
     $dataKomunikasi[] = (float)$h['nilai_komunikasi'];
     $dataDisiplin[] = (float)$h['nilai_disiplin'];
@@ -67,16 +69,39 @@ $detailKas = null;
 $detailIndicators = [];
 
 if ($latest) {
-    $stmtAtt = $pdo->prepare("SELECT k.nama_kegiatan, h.status_hadir 
-                             FROM tabel_kehadiran h 
-                             JOIN tabel_kegiatan k ON h.kegiatan_id = k.id_kegiatan 
-                             WHERE h.nokta_pengurus = ? AND k.bulan = ? AND k.tahun = ?");
-    $stmtAtt->execute([$view_nokta, $latest['bulan'], $latest['tahun']]);
-    $detailAttendance = $stmtAtt->fetchAll();
+    $is_latest_triwulan = (($latest['jenis_periode'] ?? '') === 'Triwulan' || ($latest['jenis_periode'] ?? '') === 'Triwulanan' || ($latest['mode_penilaian'] ?? '') === 'Peer Assessment');
+    
+    if ($is_latest_triwulan) {
+        $stmtMap = $pdo->prepare("SELECT bulan_sumber, tahun_sumber FROM tabel_periode_disiplin_bulan 
+                                  WHERE periode_id = (SELECT id_periode FROM tabel_periode WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ? LIMIT 1)");
+        $stmtMap->execute([$latest['bulan'], $latest['tahun'], $active_id]);
+        $mapped_months = $stmtMap->fetchAll(PDO::FETCH_ASSOC);
+        
+        $src_b_list = array_column($mapped_months, 'bulan_sumber');
+        if (!empty($src_b_list)) {
+            $inClause = implode(',', array_map('intval', $src_b_list));
+            $stmtAtt = $pdo->prepare("SELECT k.nama_kegiatan, h.status_hadir 
+                                     FROM tabel_kehadiran h 
+                                     JOIN tabel_kegiatan k ON h.kegiatan_id = k.id_kegiatan 
+                                     WHERE h.nokta_pengurus = ? AND k.bulan IN ($inClause) AND k.tahun = ?");
+            $stmtAtt->execute([$view_nokta, $latest['tahun']]);
+            $detailAttendance = $stmtAtt->fetchAll();
+        }
+        $stmtK = $pdo->prepare("SELECT * FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND tahun = ? ORDER BY bulan DESC LIMIT 1");
+        $stmtK->execute([$view_nokta, $latest['tahun']]);
+        $detailKas = $stmtK->fetch();
+    } else {
+        $stmtAtt = $pdo->prepare("SELECT k.nama_kegiatan, h.status_hadir 
+                                 FROM tabel_kehadiran h 
+                                 JOIN tabel_kegiatan k ON h.kegiatan_id = k.id_kegiatan 
+                                 WHERE h.nokta_pengurus = ? AND k.bulan = ? AND k.tahun = ?");
+        $stmtAtt->execute([$view_nokta, $latest['bulan'], $latest['tahun']]);
+        $detailAttendance = $stmtAtt->fetchAll();
 
-    $stmtK = $pdo->prepare("SELECT * FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
-    $stmtK->execute([$view_nokta, $latest['bulan'], $latest['tahun']]);
-    $detailKas = $stmtK->fetch();
+        $stmtK = $pdo->prepare("SELECT * FROM tabel_kas_pengurus WHERE nokta_pengurus = ? AND bulan = ? AND tahun = ?");
+        $stmtK->execute([$view_nokta, $latest['bulan'], $latest['tahun']]);
+        $detailKas = $stmtK->fetch();
+    }
 
     $stmtInd = $pdo->prepare("SELECT i.nama_indikator, i.kategori, AVG(tp.skor) as avg_score 
                              FROM tabel_penilaian tp 
@@ -213,7 +238,7 @@ if ($latest) {
                                     <?php foreach($history as $h): ?>
                                     <tr class="modern-row">
                                         <td class="ps-4">
-                                            <div class="fw-800 text-dark"><?= $h['bulan'] ?> / <?= $h['tahun'] ?></div>
+                                            <div class="fw-800 text-dark"><?= format_nama_periode($h) ?></div>
                                         </td>
                                         <td class="text-center fw-600 text-muted"><?= number_format($h['nilai_attitude'], 2) ?></td>
                                         <td class="text-center fw-600 text-muted"><?= number_format($h['nilai_komunikasi'], 2) ?></td>

@@ -146,6 +146,36 @@ function get_kpi_settings() {
     return $settings;
 }
 
+function get_nama_bulan_indo($month_num) {
+    $months = [
+        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
+        7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+    ];
+    return $months[(int)$month_num] ?? ('Bulan ' . $month_num);
+}
+
+function format_nama_periode($periode) {
+    if (!$periode) return 'Belum Ada Periode';
+    
+    if (!empty($periode['nama_sesi'])) {
+        return htmlspecialchars($periode['nama_sesi']);
+    }
+    
+    $bulan = (int)($periode['bulan'] ?? 0);
+    $tahun = (int)($periode['tahun'] ?? date('Y'));
+    $jenis = $periode['jenis_periode'] ?? 'Bulanan';
+    $mode = $periode['mode_penilaian'] ?? 'PPI';
+    
+    if ($jenis === 'Triwulan' || $jenis === 'Triwulanan' || $mode === 'Peer Assessment') {
+        $triwulan_no = ($bulan <= 4 && $bulan >= 1) ? $bulan : (int)ceil($bulan / 3);
+        if ($triwulan_no < 1) $triwulan_no = 1;
+        if ($triwulan_no > 4) $triwulan_no = 4;
+        return "Triwulan " . $triwulan_no . " " . $tahun;
+    }
+    
+    return get_nama_bulan_indo($bulan) . " " . $tahun;
+}
+
 function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
     global $pdo;
 
@@ -171,7 +201,7 @@ function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
     $periodeRow = $stmtPeriode->fetch();
 
     $target_disiplin_months = [];
-    if ($periodeRow && $periodeRow['jenis_periode'] === 'Triwulan') {
+    if ($periodeRow && ($periodeRow['jenis_periode'] === 'Triwulan' || $periodeRow['jenis_periode'] === 'Triwulanan' || $periodeRow['mode_penilaian'] === 'Peer Assessment')) {
         $stmtMap = $pdo->prepare("SELECT bulan_sumber, tahun_sumber 
                                   FROM tabel_periode_disiplin_bulan 
                                   WHERE periode_id = ? 
@@ -196,7 +226,7 @@ function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
     $nilai_attitude = (float)($ak_results['attitude'] ?? 0);
     $nilai_komunikasi = (float)($ak_results['komunikasi'] ?? 0);
 
-    // 3. Kalkulasi Otomatis Disiplin (Agregasi Rata-rata dari Bulan Terpilih)
+    // 3. Kalkulasi Otomatis Disiplin (Agregasi Rata-rata dari Bulan Terpilih yang diceklis)
     $settings = get_kpi_settings();
     $wHadir = $settings['weight_disiplin_hadir'] ?? 0.5;
     $wKas   = $settings['weight_disiplin_kas'] ?? 0.5;
@@ -211,13 +241,17 @@ function update_kpi_member($nokta, $bulan, $tahun, $kepengurusan_id) {
         // A. Kehadiran Kegiatan
         $stmtTotKeg = $pdo->prepare("SELECT COUNT(*) FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?");
         $stmtTotKeg->execute([$b_src, $t_src, $kepengurusan_id]);
-        $totalKegiatan = max(1, (int)$stmtTotKeg->fetchColumn());
+        $countKeg = (int)$stmtTotKeg->fetchColumn();
 
-        $stmtHadir = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?) AND status_hadir IN ('hadir', 'izin')");
-        $stmtHadir->execute([$nokta, $b_src, $t_src, $kepengurusan_id]);
-        $jmlHadir = (int)$stmtHadir->fetchColumn();
+        if ($countKeg > 0) {
+            $stmtHadir = $pdo->prepare("SELECT COUNT(*) FROM tabel_kehadiran WHERE nokta_pengurus = ? AND kegiatan_id IN (SELECT id_kegiatan FROM tabel_kegiatan WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ?) AND status_hadir IN ('hadir', 'izin')");
+            $stmtHadir->execute([$nokta, $b_src, $t_src, $kepengurusan_id]);
+            $jmlHadir = (int)$stmtHadir->fetchColumn();
+            $persenHadir = ($jmlHadir / $countKeg) * 100;
+        } else {
+            $persenHadir = 100;
+        }
 
-        $persenHadir = ($jmlHadir / $totalKegiatan) * 100;
         if ($persenHadir >= 80) {
             $scoreHadir = 4;
         } elseif ($persenHadir >= 60) {
