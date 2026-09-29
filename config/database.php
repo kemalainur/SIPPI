@@ -167,7 +167,13 @@ function format_nama_periode($periode) {
     $mode = $periode['mode_penilaian'] ?? 'PPI';
     
     if ($jenis === 'Triwulan' || $jenis === 'Triwulanan' || $mode === 'Peer Assessment') {
-        $triwulan_no = ($bulan <= 4 && $bulan >= 1) ? $bulan : (int)ceil($bulan / 3);
+        if ($bulan >= 13 && $bulan <= 20) {
+            $triwulan_no = $bulan - 12;
+        } elseif ($bulan <= 4 && $bulan >= 1) {
+            $triwulan_no = $bulan;
+        } else {
+            $triwulan_no = (int)ceil($bulan / 3);
+        }
         if ($triwulan_no < 1) $triwulan_no = 1;
         if ($triwulan_no > 4) $triwulan_no = 4;
         return "Triwulan " . $triwulan_no . " " . $tahun;

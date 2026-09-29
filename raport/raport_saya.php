@@ -26,7 +26,7 @@ $active_p = get_active_kepengurusan();
 $active_id = $active_p['id_kepengurusan'] ?? 0;
 
 $stmtHistory = $pdo->prepare("SELECT k.bulan, k.tahun, k.nilai_attitude, k.nilai_komunikasi, k.nilai_disiplin, k.nilai_kpi_total,
-                              p.jenis_periode, p.mode_penilaian 
+                              p.jenis_periode, p.mode_penilaian, p.nama_sesi
                              FROM tabel_nilai_kpi k
                              LEFT JOIN tabel_periode p ON k.bulan = p.bulan AND k.tahun = p.tahun AND k.kepengurusan_id = p.kepengurusan_id
                              WHERE k.nokta = ? AND k.kepengurusan_id = ?

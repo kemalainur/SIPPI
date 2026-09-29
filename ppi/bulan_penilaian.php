@@ -22,32 +22,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $jenis_periode = $is_triwulan ? 'Triwulanan' : 'Bulanan';
         $nama_sesi = null;
 
+        $tahun = (int)$_POST['tahun'];
+        $bulan_disiplin = isset($_POST['bulan_disiplin']) && is_array($_POST['bulan_disiplin']) ? $_POST['bulan_disiplin'] : [];
+
         if ($is_triwulan) {
             $nama_sesi = trim($_POST['nama_sesi'] ?? '');
-            $bulan = (int)($_POST['bulan'] ?? date('n'));
             $mode_penilaian = 'Peer Assessment';
+            // Cari slot Triwulan bebas berikutnya (13, 14, 15, ...)
+            $stmtTW = $pdo->prepare("SELECT MAX(bulan) FROM tabel_periode WHERE kepengurusan_id = ? AND tahun = ? AND bulan >= 13");
+            $stmtTW->execute([$active_p['id_kepengurusan'], $tahun]);
+            $maxTW = $stmtTW->fetchColumn();
+            $bulan = $maxTW ? ((int)$maxTW + 1) : 13;
         } else {
             $bulan = (int)$_POST['bulan'];
             $mode_penilaian = 'PPI';
         }
-        $tahun = (int)$_POST['tahun'];
-        $bulan_disiplin = isset($_POST['bulan_disiplin']) && is_array($_POST['bulan_disiplin']) ? $_POST['bulan_disiplin'] : [];
+
         try {
-            $stmt = $pdo->prepare("INSERT INTO tabel_periode (bulan, tahun, status, kepengurusan_id, jenis_periode, mode_penilaian, nama_sesi) VALUES (?, ?, 'aktif', ?, ?, ?, ?)");
-            $stmt->execute([$bulan, $tahun, $active_p['id_kepengurusan'], $jenis_periode, $mode_penilaian, $nama_sesi]);
-            $new_periode_id = $pdo->lastInsertId();
-            if ($is_triwulan) {
-                if (!empty($bulan_disiplin)) {
-                    $stmtMap = $pdo->prepare("INSERT INTO tabel_periode_disiplin_bulan (periode_id, bulan_sumber, tahun_sumber) VALUES (?, ?, ?)");
-                    foreach ($bulan_disiplin as $b_src) {
-                        $stmtMap->execute([$new_periode_id, (int)$b_src, $tahun]);
-                    }
+            // Cek apakah periode bulan & tahun ini sudah pernah dibuat sebelumnya
+            $stmtCheck = $pdo->prepare("SELECT id_periode FROM tabel_periode WHERE bulan = ? AND tahun = ? AND kepengurusan_id = ? LIMIT 1");
+            $stmtCheck->execute([$bulan, $tahun, $active_p['id_kepengurusan']]);
+            $existing_id = $stmtCheck->fetchColumn();
+
+            // Nonaktifkan periode aktif lain sebelumnya
+            $pdo->prepare("UPDATE tabel_periode SET status = 'tutup' WHERE kepengurusan_id = ? AND status = 'aktif'")->execute([$active_p['id_kepengurusan']]);
+
+            if ($existing_id) {
+                // Update dan aktifkan kembali periode yang sudah ada di database
+                $stmt = $pdo->prepare("UPDATE tabel_periode SET status = 'aktif', jenis_periode = ?, mode_penilaian = ?, nama_sesi = ? WHERE id_periode = ?");
+                $stmt->execute([$jenis_periode, $mode_penilaian, $nama_sesi, $existing_id]);
+                $target_periode_id = $existing_id;
+            } else {
+                // Insert periode baru
+                $stmt = $pdo->prepare("INSERT INTO tabel_periode (bulan, tahun, status, kepengurusan_id, jenis_periode, mode_penilaian, nama_sesi) VALUES (?, ?, 'aktif', ?, ?, ?, ?)");
+                $stmt->execute([$bulan, $tahun, $active_p['id_kepengurusan'], $jenis_periode, $mode_penilaian, $nama_sesi]);
+                $target_periode_id = $pdo->lastInsertId();
+            }
+
+            // Simpan pemetaan disiplin
+            $pdo->prepare("DELETE FROM tabel_periode_disiplin_bulan WHERE periode_id = ?")->execute([$target_periode_id]);
+            if ($is_triwulan && !empty($bulan_disiplin)) {
+                $stmtMap = $pdo->prepare("INSERT INTO tabel_periode_disiplin_bulan (periode_id, bulan_sumber, tahun_sumber) VALUES (?, ?, ?)");
+                foreach ($bulan_disiplin as $b_src) {
+                    $stmtMap->execute([$target_periode_id, (int)$b_src, $tahun]);
                 }
             }
-            $message = "Periode Penilaian Berhasil Dibuka!";
+            $message = "Periode Penilaian Berhasil Diaktifkan!";
         } catch (PDOException $e) {
-            $message = "Gagal: Periode ini mungkin sudah ada.";
+            $message = "Gagal mengaktifkan periode: " . $e->getMessage();
         }
+    } elseif (isset($_POST['activate_periode'])) {
+        $id = (int)$_POST['id_periode'];
+        $pdo->prepare("UPDATE tabel_periode SET status = 'tutup' WHERE kepengurusan_id = ? AND status = 'aktif'")->execute([$active_p['id_kepengurusan']]);
+        $stmt = $pdo->prepare("UPDATE tabel_periode SET status = 'aktif' WHERE id_periode = ?");
+        $stmt->execute([$id]);
+        $message = "Periode Penilaian Berhasil Diaktifkan Kembali!";
     } elseif (isset($_POST['close_periode'])) {
         $id = $_POST['id_periode'];
         $stmt = $pdo->prepare("UPDATE tabel_periode SET status = 'tutup' WHERE id_periode = ?");
@@ -59,16 +88,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $is_triwulan = ($raw_jenis === 'Triwulan' || $raw_jenis === 'Triwulanan');
         $jenis_periode = $is_triwulan ? 'Triwulanan' : 'Bulanan';
         $nama_sesi = null;
+        $tahun = (int)$_POST['tahun'];
 
         if ($is_triwulan) {
             $nama_sesi = trim($_POST['nama_sesi'] ?? '');
-            $bulan = (int)($_POST['bulan'] ?? date('n'));
             $mode_penilaian = 'Peer Assessment';
+            $stmtCurr = $pdo->prepare("SELECT bulan FROM tabel_periode WHERE id_periode = ?");
+            $stmtCurr->execute([$id]);
+            $currBulan = (int)$stmtCurr->fetchColumn();
+            if ($currBulan >= 13) {
+                $bulan = $currBulan;
+            } else {
+                $stmtTW = $pdo->prepare("SELECT MAX(bulan) FROM tabel_periode WHERE kepengurusan_id = ? AND tahun = ? AND bulan >= 13");
+                $stmtTW->execute([$active_p['id_kepengurusan'], $tahun]);
+                $maxTW = $stmtTW->fetchColumn();
+                $bulan = $maxTW ? ((int)$maxTW + 1) : 13;
+            }
         } else {
             $bulan = (int)$_POST['bulan'];
             $mode_penilaian = 'PPI';
         }
-        $tahun = (int)$_POST['tahun'];
+
         $bulan_disiplin = isset($_POST['bulan_disiplin']) && is_array($_POST['bulan_disiplin']) ? $_POST['bulan_disiplin'] : [];
         $stmt = $pdo->prepare("UPDATE tabel_periode SET bulan = ?, tahun = ?, jenis_periode = ?, mode_penilaian = ?, nama_sesi = ? WHERE id_periode = ?");
         $stmt->execute([$bulan, $tahun, $jenis_periode, $mode_penilaian, $nama_sesi, $id]);
@@ -190,7 +230,7 @@ $indonesian_months = [
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-primary d-flex align-items-center shadow-sm px-3" data-bs-toggle="modal" data-bs-target="#openModal">
-                <i class="fas fa-plus-circle me-1"></i> Buka Bulan Baru
+                <i class="fas fa-plus-circle me-1"></i> Buka Periode Baru
             </button>
         </div>
     </div>
@@ -360,6 +400,12 @@ $indonesian_months = [
                                             </td>
                                             <td class="text-center pe-4">
                                                 <div class="d-flex justify-content-center gap-1">
+                                                    <?php if ($h['status'] !== 'aktif'): ?>
+                                                        <form method="POST" class="d-inline" onsubmit="return confirm('Aktifkan periode penilaian ini? Periode lain yang sedang aktif akan ditutup.');">
+                                                            <input type="hidden" name="id_periode" value="<?= $h['id_periode'] ?>">
+                                                            <button type="submit" name="activate_periode" class="btn btn-icon btn-light-soft text-success" title="Aktifkan Periode"><i class="fas fa-play-circle"></i></button>
+                                                        </form>
+                                                    <?php endif; ?>
                                                     <button class="btn btn-icon btn-light-soft text-primary" data-bs-toggle="modal" data-bs-target="#editModal<?= $h['id_periode'] ?>" title="Ubah Periode"><i class="fas fa-edit"></i></button>
                                                     <button class="btn btn-icon btn-light-soft text-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $h['id_periode'] ?>" title="Hapus Periode"><i class="fas fa-trash-alt"></i></button>
                                                 </div>

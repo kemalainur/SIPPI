@@ -19,7 +19,7 @@ $activeM = $stmtAktif->fetch();
 $bulan = $activeM['bulan'] ?? null;
 $tahun = $activeM['tahun'] ?? null;
 
-$stmtAllP = $pdo->prepare("SELECT id_periode, bulan, tahun, jenis_periode, mode_penilaian FROM tabel_periode WHERE kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC");
+$stmtAllP = $pdo->prepare("SELECT id_periode, bulan, tahun, jenis_periode, mode_penilaian, nama_sesi FROM tabel_periode WHERE kepengurusan_id = ? ORDER BY tahun DESC, bulan DESC");
 $stmtAllP->execute([$active_id]);
 $allPeriods = $stmtAllP->fetchAll();
 
